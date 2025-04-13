@@ -30,7 +30,6 @@ def is_match(val, desired_val):
 def match_score(person_a, person_b):
     score = 0
 
-    # 범위형 필드: 숫자 비교
     range_fields = [
         ('나이', '원하는 나이'),
         ('키', '원하는 키'),
@@ -43,7 +42,6 @@ def match_score(person_a, person_b):
         if is_within_range(person_b.get(real_field), person_a.get(desired_field)):
             score += 1
 
-    # 단순 일치형 필드
     simple_fields = [
         ('흡연 여부', '상대방의 흡연 여부'),
         ('음주 여부', '상대방의 음주 여부'),
