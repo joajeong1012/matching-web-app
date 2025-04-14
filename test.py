@@ -7,10 +7,10 @@ st.title("💘 레이디 이어주기 매칭 분석기")
 st.write("🔎 Excel에서 복사한 데이터를 아래에 붙여넣으세요 (열은 탭으로 구분됩니다).")
 st.write("⚠️ '꼭 맞아야 조건들'이 모두 충족된 경우에만 매칭 결과가 표시됩니다.")
 
-# 사용자 입력
+# 📥 사용자 입력
 user_input = st.text_area("📋 여기에 데이터를 붙여넣으세요", height=300)
 
-# 유틸 함수들
+# 🎯 유틸 함수들
 def parse_range(text):
     try:
         if '~' in text:
@@ -36,9 +36,18 @@ def is_in_range(val, range_text):
     except:
         return False
 
+# ✅ 복수 나이 범위 지원
+def is_in_range_list(val, range_texts):
+    try:
+        ranges = str(range_texts).split(",")
+        return any(is_in_range(val, r.strip()) for r in ranges)
+    except:
+        return False
+
 def list_overlap(list1, list2):
     return any(item.strip() in [l.strip() for l in list2] for item in list1)
 
+# 🎯 꼭 맞아야 조건 검사
 def satisfies_must_conditions(person_a, person_b):
     must_conditions = str(person_a.get("꼭 맞아야 조건들", "")).split(",")
     for cond in must_conditions:
@@ -84,14 +93,16 @@ def satisfies_must_conditions(person_a, person_b):
                 return False
     return True
 
+# 🎯 매칭 점수 계산
 def match_score(person_a, person_b):
     score = 0
     total = 0
 
-    if is_in_range(person_a.get("레이디 나이"), person_b.get("선호하는 나이 범위", "")):
+    # ✅ 나이 복수 범위 지원
+    if is_in_range_list(person_a.get("레이디 나이"), person_b.get("선호하는 나이 범위", "")):
         score += 1
     total += 1
-    if is_in_range(person_b.get("레이디 나이"), person_a.get("선호하는 나이 범위", "")):
+    if is_in_range_list(person_b.get("레이디 나이"), person_a.get("선호하는 나이 범위", "")):
         score += 1
     total += 1
 
@@ -139,6 +150,7 @@ def match_score(person_a, person_b):
 
     return score, total
 
+# 🎯 전체 매칭 계산
 def get_filtered_matches(df):
     matches = []
     seen_pairs = set()
@@ -172,7 +184,7 @@ def get_filtered_matches(df):
 
     return pd.DataFrame(matches).sort_values(by="매칭 점수", ascending=False)
 
-# 실행
+# 🚀 실행
 if user_input:
     try:
         df = pd.read_csv(StringIO(user_input), sep="\t")
