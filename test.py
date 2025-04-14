@@ -128,9 +128,17 @@ def match_score(person_a, person_b):
 
 def get_filtered_matches(df):
     matches = []
+    seen_pairs = set()
+
     for a, b in permutations(df.index, 2):
         person_a = df.loc[a]
         person_b = df.loc[b]
+
+        # 쌍을 닉네임 기준으로 정렬하여 중복 제거
+        pair_key = tuple(sorted([person_a["닉네임"], person_b["닉네임"]]))
+        if pair_key in seen_pairs:
+            continue
+        seen_pairs.add(pair_key)
 
         if not satisfies_must_conditions(person_a, person_b):
             continue
@@ -139,11 +147,13 @@ def get_filtered_matches(df):
 
         score = match_score(person_a, person_b)
         matches.append({
-            "A 닉네임": person_a["닉네임"],
-            "B 닉네임": person_b["닉네임"],
+            "A 닉네임": pair_key[0],
+            "B 닉네임": pair_key[1],
             "매칭 점수": score
         })
+
     return pd.DataFrame(matches).sort_values(by="매칭 점수", ascending=False)
+
 
 # 실행
 if user_input:
