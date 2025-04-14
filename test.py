@@ -8,6 +8,7 @@ st.write("📋 구글 폼 응답을 복사해서 붙여넣어주세요 (탭으�
 
 user_input = st.text_area("📥 데이터를 붙여넣으세요", height=300)
 
+# ✔ 예상 컬럼명 최대 32개
 expected_columns = [
     "응답 시간", "닉네임", "레이디 나이", "선호하는 상대방 레이디 나이", "레이디의 거주 지역", "희망하는 거리 조건",
     "레이디 키", "상대방 레이디 키", "흡연(레이디)", "흡연(상대방)", "음주(레이디)", "음주(상대방)",
@@ -21,20 +22,13 @@ def clean_df(raw_df):
     df = raw_df.dropna(axis=1, how="all")
     df = df.loc[:, ~df.columns.duplicated()]
     col_count = len(df.columns)
-
     while col_count < len(expected_columns):
         df[f"_dummy_{col_count}"] = None
         col_count += 1
-
     df = df.iloc[:, :len(expected_columns)]
     df.columns = expected_columns[:len(df.columns)]
-
-    # 누락 컬럼 자동 보정
-    rename_map = {
-        "데이트 선호 주기": "데이트 선호 주기(레이디)"
-    }
-    df = df.rename(columns=rename_map)
-
+    # 컬럼 이름 보정
+    df = df.rename(columns={"데이트 선호 주기": "데이트 선호 주기(레이디)"})
     return df.drop(columns=[
         "응답 시간", "손톱길이(농담)", "연애 텀",
         "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
@@ -42,6 +36,8 @@ def clean_df(raw_df):
 
 def parse_range(text):
     try:
+        if pd.isna(text):
+            return None, None
         if '~' in text:
             parts = text.replace(' ', '').split('~')
             return float(parts[0]), float(parts[1])
@@ -53,8 +49,13 @@ def parse_range(text):
 
 def is_in_range(val, range_text):
     try:
+        if pd.isna(val) or pd.isna(range_text):
+            return False
+        val = float(val)
         min_val, max_val = parse_range(range_text)
-        return min_val <= float(val) <= max_val
+        if min_val is None or max_val is None:
+            return False
+        return min_val <= val <= max_val
     except:
         return False
 
