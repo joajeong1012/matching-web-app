@@ -4,10 +4,43 @@ from io import StringIO
 from itertools import permutations
 
 st.title("💘 레이디 이어주기 매칭 분석기")
-st.write("📋 Excel에서 복사한 데이터를 붙여넣으세요 (열은 탭으로 구분됩니다).")
-st.write("⚠️ '꼭 맞아야 조건들'이 모두 충족된 경우에만 매칭 결과가 표시됩니다.")
+st.write("📋 구글 폼 응답을 복사해서 붙여넣어주세요 (열은 탭으로 구분됩니다).")
 
 user_input = st.text_area("📥 여기에 데이터를 붙여넣으세요", height=300)
+
+expected_columns = [
+    "응답 시간",  # 무시
+    "닉네임",
+    "레이디 나이",
+    "선호하는 상대방 레이디 나이",
+    "레이디의 거주 지역",
+    "희망하는 거리 조건",
+    "레이디 키",
+    "상대방 레이디 키",
+    "흡연(레이디)",
+    "흡연(상대방)",
+    "음주(레이디)",
+    "음주(상대방)",
+    "타투(레이디)",
+    "타투(상대방)",
+    "벽장(레이디)",
+    "벽장(상대방)",
+    "퀴어 지인 多(레이디)",
+    "퀴어 지인 多(상대방)",
+    "성격(레이디)",
+    "성격(상대방)",
+    "연락 텀(레이디)",
+    "연락 텀(상대방)",
+    "머리 길이(레이디)",
+    "머리 길이(상대방)",
+    "데이트 선호 주기",
+    "손톱길이(농담)",
+    "양금 레벨",
+    "희망 양금 레벨",
+    "연애 텀",  # 무시
+    "꼭 맞아야 조건들",
+    "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
+]
 
 def parse_range(text):
     try:
@@ -102,7 +135,6 @@ def match_score(person_a, person_b):
         score += 1
     total += 1
 
-    # 거리 조건 로직
     distance_match = False
     if person_a.get("희망하는 거리 조건") == "단거리" or person_b.get("희망하는 거리 조건") == "단거리":
         if person_a.get("레이디의 거주 지역") == person_b.get("레이디의 거주 지역"):
@@ -183,11 +215,11 @@ def get_filtered_matches(df):
 # 실행
 if user_input:
     try:
-        df = pd.read_csv(StringIO(user_input), sep="\t")
+        df = pd.read_csv(StringIO(user_input), sep="\t", header=None)
+        df.columns = expected_columns
 
-        # 무시할 열 제거
-        drop_cols = ["손톱길이(농담)", "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"]
-        df = df.drop(columns=[col for col in drop_cols if col in df.columns])
+        df = df.drop(columns=["응답 시간", "손톱길이(농담)", "연애 텀",
+                              "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"])
 
         st.success("✅ 데이터 분석 성공!")
         st.dataframe(df)
