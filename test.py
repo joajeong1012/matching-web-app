@@ -4,21 +4,15 @@ from io import StringIO
 from itertools import permutations
 
 st.title("💘 레이디 이어주기 매칭 분석기")
-st.write("🔎 Excel에서 복사한 데이터를 아래에 붙여넣으세요 (열은 탭으로 구분됩니다).")
+st.write("📋 Excel에서 복사한 데이터를 붙여넣으세요 (열은 탭으로 구분됩니다).")
 st.write("⚠️ '꼭 맞아야 조건들'이 모두 충족된 경우에만 매칭 결과가 표시됩니다.")
 
-# 📥 사용자 입력
-user_input = st.text_area("📋 여기에 데이터를 붙여넣으세요", height=300)
+user_input = st.text_area("📥 여기에 데이터를 붙여넣으세요", height=300)
 
-# 🎯 유틸 함수들
 def parse_range(text):
     try:
         if '~' in text:
             parts = text.replace(' ', '').split('~')
-            if parts[0] == '':
-                return float('-inf'), float(parts[1])
-            elif parts[1] == '':
-                return float(parts[0]), float('inf')
             return float(parts[0]), float(parts[1])
         else:
             val = float(text)
@@ -31,12 +25,10 @@ def is_in_range(val, range_text):
         if pd.isnull(val) or pd.isnull(range_text):
             return False
         min_val, max_val = parse_range(range_text)
-        val = float(val)
-        return min_val <= val <= max_val
+        return min_val <= float(val) <= max_val
     except:
         return False
 
-# ✅ 복수 나이 범위 지원
 def is_in_range_list(val, range_texts):
     try:
         ranges = str(range_texts).split(",")
@@ -47,17 +39,16 @@ def is_in_range_list(val, range_texts):
 def list_overlap(list1, list2):
     return any(item.strip() in [l.strip() for l in list2] for item in list1)
 
-# 🎯 꼭 맞아야 조건 검사
 def satisfies_must_conditions(person_a, person_b):
     must_conditions = str(person_a.get("꼭 맞아야 조건들", "")).split(",")
     for cond in must_conditions:
         cond = cond.strip()
         if cond == "거리":
-            if not (person_a.get("희망 거리") == person_b.get("희망 거리") or
-                    "상관없음" in [person_a.get("희망 거리"), person_b.get("희망 거리")]):
-                return False
+            if (person_a.get("희망하는 거리 조건") == "단거리" or person_b.get("희망하는 거리 조건") == "단거리"):
+                if person_a.get("레이디의 거주 지역") != person_b.get("레이디의 거주 지역"):
+                    return False
         elif cond == "키":
-            if not is_in_range(person_b.get("레이디 키"), person_a.get("상대방 키 희망")):
+            if not is_in_range(person_b.get("레이디 키"), person_a.get("상대방 레이디 키")):
                 return False
         elif cond == "흡연":
             if person_b.get("흡연(레이디)") != person_a.get("흡연(상대방)"):
@@ -93,27 +84,33 @@ def satisfies_must_conditions(person_a, person_b):
                 return False
     return True
 
-# 🎯 매칭 점수 계산
 def match_score(person_a, person_b):
     score = 0
     total = 0
 
-    # ✅ 나이 복수 범위 지원
-    if is_in_range_list(person_a.get("레이디 나이"), person_b.get("선호하는 나이 범위", "")):
+    if is_in_range_list(person_a.get("레이디 나이"), person_b.get("선호하는 상대방 레이디 나이")):
         score += 1
     total += 1
-    if is_in_range_list(person_b.get("레이디 나이"), person_a.get("선호하는 나이 범위", "")):
-        score += 1
-    total += 1
-
-    if is_in_range(person_a.get("레이디 키"), person_b.get("상대방 키 희망")):
-        score += 1
-    total += 1
-    if is_in_range(person_b.get("레이디 키"), person_a.get("상대방 키 희망")):
+    if is_in_range_list(person_b.get("레이디 나이"), person_a.get("선호하는 상대방 레이디 나이")):
         score += 1
     total += 1
 
-    if person_a.get("희망 거리") == person_b.get("희망 거리") or "상관없음" in [person_a.get("희망 거리"), person_b.get("희망 거리")]:
+    if is_in_range(person_a.get("레이디 키"), person_b.get("상대방 레이디 키")):
+        score += 1
+    total += 1
+    if is_in_range(person_b.get("레이디 키"), person_a.get("상대방 레이디 키")):
+        score += 1
+    total += 1
+
+    # 거리 조건 로직
+    distance_match = False
+    if person_a.get("희망하는 거리 조건") == "단거리" or person_b.get("희망하는 거리 조건") == "단거리":
+        if person_a.get("레이디의 거주 지역") == person_b.get("레이디의 거주 지역"):
+            distance_match = True
+    else:
+        distance_match = True
+
+    if distance_match:
         score += 1
     total += 1
 
@@ -150,7 +147,6 @@ def match_score(person_a, person_b):
 
     return score, total
 
-# 🎯 전체 매칭 계산
 def get_filtered_matches(df):
     matches = []
     seen_pairs = set()
@@ -184,10 +180,15 @@ def get_filtered_matches(df):
 
     return pd.DataFrame(matches).sort_values(by="매칭 점수", ascending=False)
 
-# 🚀 실행
+# 실행
 if user_input:
     try:
         df = pd.read_csv(StringIO(user_input), sep="\t")
+
+        # 무시할 열 제거
+        drop_cols = ["손톱길이(농담)", "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"]
+        df = df.drop(columns=[col for col in drop_cols if col in df.columns])
+
         st.success("✅ 데이터 분석 성공!")
         st.dataframe(df)
 
@@ -196,8 +197,8 @@ if user_input:
         if result_df.empty:
             st.warning("⚠️ '꼭 맞아야 할 조건'을 모두 만족하는 매칭 결과가 없습니다.")
         else:
-            st.subheader("💘 매칭 결과 (꼭 맞아야 조건 충족한 경우만)")
+            st.subheader("💘 매칭 결과")
             st.dataframe(result_df)
 
     except Exception as e:
-        st.error(f"❌ 데이터 분석 실패: {e}")
+        st.error(f"❌ 분석 실패: {e}")
