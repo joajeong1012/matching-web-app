@@ -148,13 +148,18 @@ def get_filtered_matches(df):
 # ✅ 실행
 if user_input:
     try:
-        df = pd.read_csv(StringIO(user_input), sep=None, engine="python")
-        st.success("✅ 데이터 분석 성공!")
-        st.dataframe(df)
+    df = pd.read_csv(StringIO(user_input), sep=None, engine="python")
+    st.success("✅ 데이터 분석 성공!")
+    st.dataframe(df)
 
-        result_df = get_filtered_matches(df)
+    result_df = get_filtered_matches(df)
+    
+    if result_df.empty:
+        st.warning("⚠️ '꼭 맞아야 할 조건'이 모두 충족된 매칭이 없습니다.")
+    else:
         st.subheader("💘 매칭 결과 (꼭 맞아야 조건 충족한 경우만)")
         st.dataframe(result_df)
 
-    except Exception as e:
-        st.error(f"❌ 데이터 분석 실패: {e}")
+except Exception as e:
+    st.error(f"❌ 데이터 분석 실패: {e}")
+
