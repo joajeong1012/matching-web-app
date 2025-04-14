@@ -10,7 +10,7 @@ st.write("⚠️ '꼭 맞아야 조건들'이 모두 충족된 경우에만 매�
 # 사용자 입력
 user_input = st.text_area("📋 여기에 데이터를 붙여넣으세요", height=300)
 
-# 유틸 함수
+# 유틸 함수들
 def parse_range(text):
     try:
         if '~' in text:
@@ -86,45 +86,58 @@ def satisfies_must_conditions(person_a, person_b):
 
 def match_score(person_a, person_b):
     score = 0
+    total = 0
 
     if is_in_range(person_a.get("레이디 나이"), person_b.get("선호하는 나이 범위", "")):
         score += 1
+    total += 1
     if is_in_range(person_b.get("레이디 나이"), person_a.get("선호하는 나이 범위", "")):
         score += 1
+    total += 1
 
     if is_in_range(person_a.get("레이디 키"), person_b.get("상대방 키 희망")):
         score += 1
+    total += 1
     if is_in_range(person_b.get("레이디 키"), person_a.get("상대방 키 희망")):
         score += 1
+    total += 1
 
     if person_a.get("희망 거리") == person_b.get("희망 거리") or "상관없음" in [person_a.get("희망 거리"), person_b.get("희망 거리")]:
         score += 1
+    total += 1
 
     yn_fields = ["흡연", "음주", "타투", "벽장", "퀴어 지인 多"]
     for field in yn_fields:
         if person_a.get(f"{field}(레이디)") == person_b.get(f"{field}(상대방)"):
             score += 1
+        total += 1
         if person_b.get(f"{field}(레이디)") == person_a.get(f"{field}(상대방)"):
             score += 1
+        total += 1
 
     detail_fields = ["연락 텀", "머리 길이", "데이트 선호 주기"]
     for field in detail_fields:
         if person_a.get(f"{field}(레이디)") == person_b.get(f"{field}(상대방)"):
             score += 1
+        total += 1
         if person_b.get(f"{field}(레이디)") == person_a.get(f"{field}(상대방)"):
             score += 1
+        total += 1
 
     if person_a.get("성격(레이디)") == person_b.get("성격(상대방)"):
         score += 1
+    total += 1
     if person_b.get("성격(레이디)") == person_a.get("성격(상대방)"):
         score += 1
+    total += 1
 
     a_levels = str(person_a.get("양금 레벨", "")).split(",")
     b_pref_levels = str(person_b.get("희망 양금 레벨", "")).split(",")
     if list_overlap(a_levels, b_pref_levels):
         score += 1
+    total += 1
 
-    return score
+    return score, total
 
 def get_filtered_matches(df):
     matches = []
@@ -134,7 +147,6 @@ def get_filtered_matches(df):
         person_a = df.loc[a]
         person_b = df.loc[b]
 
-        # 쌍을 닉네임 기준으로 정렬하여 중복 제거
         pair_key = tuple(sorted([person_a["닉네임"], person_b["닉네임"]]))
         if pair_key in seen_pairs:
             continue
@@ -145,15 +157,20 @@ def get_filtered_matches(df):
         if not satisfies_must_conditions(person_b, person_a):
             continue
 
-        score = match_score(person_a, person_b)
+        score, total = match_score(person_a, person_b)
+        percent = round(score / total * 100, 1)
+        summary = f"{score} / {total}점 ({percent}%)"
+
         matches.append({
             "A 닉네임": pair_key[0],
             "B 닉네임": pair_key[1],
-            "매칭 점수": score
+            "매칭 점수": score,
+            "총 점수": total,
+            "비율 (%)": percent,
+            "결과 요약": summary
         })
 
     return pd.DataFrame(matches).sort_values(by="매칭 점수", ascending=False)
-
 
 # 실행
 if user_input:
