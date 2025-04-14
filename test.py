@@ -143,17 +143,18 @@ def get_matches(df):
     return pd.DataFrame(matches).sort_values(by="매칭 점수", ascending=False)
 
 # 🔄 실행
+# ▶ 실행
 if user_input:
     try:
-        df = pd.read_csv(StringIO(user_input), sep="\t", header=None)
-        df = clean_columns(df)
+        raw_df = pd.read_csv(StringIO(user_input), sep="\t", header=None)
+        df = clean_df(raw_df)  # ✅ 함수 이름 수정됨
         st.success("✅ 데이터 분석 성공!")
         st.dataframe(df)
 
         result = get_matches(df)
 
         if result.empty:
-            st.warning("❗ 매칭 조건을 만족하는 결과가 없습니다.")
+            st.warning("😢 매칭 조건을 만족하는 결과가 없습니다.")
         else:
             st.subheader("💘 매칭 결과")
             st.dataframe(result)
