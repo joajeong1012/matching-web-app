@@ -7,10 +7,10 @@ st.title("💘 레이디 이어주기 매칭 분석기")
 st.write("🔎 구글 시트에서 복사한 텍스트 데이터를 아래에 붙여넣으세요.")
 st.write("⚠️ '꼭 맞아야 조건들'이 모두 충족된 경우에만 매칭 결과가 표시됩니다.")
 
-# 📋 사용자 인풋
+# 사용자 입력
 user_input = st.text_area("📋 여기에 데이터를 붙여넣으세요 (Tab 또는 쉼표로 구분)", height=300)
 
-# 🧠 유틸 함수
+# 유틸 함수
 def parse_range(text):
     try:
         if '~' in text:
@@ -145,21 +145,20 @@ def get_filtered_matches(df):
         })
     return pd.DataFrame(matches).sort_values(by="매칭 점수", ascending=False)
 
-# ✅ 실행
+# 실행
 if user_input:
     try:
-    df = pd.read_csv(StringIO(user_input), sep=None, engine="python")
-    st.success("✅ 데이터 분석 성공!")
-    st.dataframe(df)
+        df = pd.read_csv(StringIO(user_input), sep=None, engine="python")
+        st.success("✅ 데이터 분석 성공!")
+        st.dataframe(df)
 
-    result_df = get_filtered_matches(df)
-    
-    if result_df.empty:
-        st.warning("⚠️ '꼭 맞아야 할 조건'이 모두 충족된 매칭이 없습니다.")
-    else:
-        st.subheader("💘 매칭 결과 (꼭 맞아야 조건 충족한 경우만)")
-        st.dataframe(result_df)
+        result_df = get_filtered_matches(df)
 
-except Exception as e:
-    st.error(f"❌ 데이터 분석 실패: {e}")
+        if result_df.empty:
+            st.warning("⚠️ '꼭 맞아야 할 조건'을 모두 만족하는 매칭 결과가 없습니다.")
+        else:
+            st.subheader("💘 매칭 결과 (꼭 맞아야 조건 충족한 경우만)")
+            st.dataframe(result_df)
 
+    except Exception as e:
+        st.error(f"❌ 데이터 분석 실패: {e}")
