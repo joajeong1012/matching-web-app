@@ -8,7 +8,7 @@ st.write("📋 구글 폼 응답을 복사해서 붙여넣어주세요 (탭으�
 
 user_input = st.text_area("📥 데이터를 붙여넣으세요", height=300)
 
-# ✔ 예상 컬럼명 최대 32개
+# 예상 컬럼 이름
 expected_columns = [
     "응답 시간", "닉네임", "레이디 나이", "선호하는 상대방 레이디 나이", "레이디의 거주 지역", "희망하는 거리 조건",
     "레이디 키", "상대방 레이디 키", "흡연(레이디)", "흡연(상대방)", "음주(레이디)", "음주(상대방)",
@@ -18,39 +18,47 @@ expected_columns = [
     "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
 ]
 
+# 컬럼 정리 함수
 def clean_df(raw_df):
     df = raw_df.dropna(axis=1, how="all")
     df = df.loc[:, ~df.columns.duplicated()]
-    col_count = len(df.columns)
-    while col_count < len(expected_columns):
-        df[f"_dummy_{col_count}"] = None
-        col_count += 1
+    while len(df.columns) < len(expected_columns):
+        df[f"_dummy_{len(df.columns)}"] = None
     df = df.iloc[:, :len(expected_columns)]
     df.columns = expected_columns[:len(df.columns)]
-    # 컬럼 이름 보정
     df = df.rename(columns={"데이트 선호 주기": "데이트 선호 주기(레이디)"})
     return df.drop(columns=[
         "응답 시간", "손톱길이(농담)", "연애 텀",
         "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
     ], errors="ignore")
 
+# 범위 파싱 함수
 def parse_range(text):
     try:
         if pd.isna(text):
             return None, None
+        text = str(text).strip()
+        if not text or text == "~":
+            return None, None
         if '~' in text:
             parts = text.replace(' ', '').split('~')
+            if len(parts) != 2 or not parts[0] or not parts[1]:
+                return None, None
             return float(parts[0]), float(parts[1])
         else:
-            val = float(text)
-            return val, val
+            return float(text), float(text)
     except:
         return None, None
 
+# 범위 비교 함수
 def is_in_range(val, range_text):
     try:
         if pd.isna(val) or pd.isna(range_text):
             return False
+        if isinstance(val, str):
+            val = val.strip()
+            if not val.replace(".", "").isdigit():
+                return False
         val = float(val)
         min_val, max_val = parse_range(range_text)
         if min_val is None or max_val is None:
@@ -69,6 +77,7 @@ def is_in_range_list(val, range_texts):
 def list_overlap(list1, list2):
     return any(a.strip() in [b.strip() for b in list2] for a in list1 if a.strip())
 
+# 필수 조건 필터
 def satisfies_must_conditions(person_a, person_b):
     musts = str(person_a.get("꼭 맞아야 조건들", "")).split(",")
     for cond in musts:
@@ -90,6 +99,7 @@ def satisfies_must_conditions(person_a, person_b):
                 return False
     return True
 
+# 매칭 점수 계산
 def match_score(a, b):
     score, total = 0, 0
 
@@ -136,6 +146,7 @@ def match_score(a, b):
 
     return score, total
 
+# 전체 매칭 계산
 def get_matches(df):
     matches, seen = [], set()
     for a, b in permutations(df.index, 2):
