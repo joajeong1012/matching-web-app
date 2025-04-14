@@ -2,40 +2,43 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 from itertools import permutations
-import re
 
 st.title("💘 레이디 이어주기 매칭 분석기")
-st.write("📋 구글 폼 응답을 복사해서 붙여넣어주세요 (탭으로 구분된 데이터 형식)")
+st.write("📋 구글 폼 응답을 복사해서 붙여넣어주세요 (탭으로 구분된 TSV 형식)")
 
 user_input = st.text_area("📥 데이터를 붙여넣으세요", height=300)
 
-# ▶ 예상되는 열 이름
 expected_columns = [
     "응답 시간", "닉네임", "레이디 나이", "선호하는 상대방 레이디 나이", "레이디의 거주 지역", "희망하는 거리 조건",
     "레이디 키", "상대방 레이디 키", "흡연(레이디)", "흡연(상대방)", "음주(레이디)", "음주(상대방)",
     "타투(레이디)", "타투(상대방)", "벽장(레이디)", "벽장(상대방)", "퀴어 지인 多(레이디)", "퀴어 지인 多(상대방)",
     "성격(레이디)", "성격(상대방)", "연락 텀(레이디)", "연락 텀(상대방)", "머리 길이(레이디)", "머리 길이(상대방)",
-    "데이트 선호 주기", "손톱길이(농담)", "양금 레벨", "", "희망 양금 레벨", "연애 텀", "꼭 맞아야 조건들",
+    "데이트 선호 주기(레이디)", "손톱길이(농담)", "양금 레벨", "", "희망 양금 레벨", "연애 텀", "꼭 맞아야 조건들",
     "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
 ]
 
 def clean_df(raw_df):
-    df = raw_df.dropna(axis=1, how="all")                      # 전부 NaN인 열 제거
-    df = df.loc[:, ~df.columns.duplicated()]                   # 중복 열 제거
-    df = df.iloc[:, :len(expected_columns)]                    # 최대 expected 컬럼 수만큼 유지
+    df = raw_df.dropna(axis=1, how="all")
+    df = df.loc[:, ~df.columns.duplicated()]
     col_count = len(df.columns)
 
-    # 열 개수 맞추기
     while col_count < len(expected_columns):
         df[f"_dummy_{col_count}"] = None
         col_count += 1
 
-    df.columns = expected_columns[:col_count]
+    df = df.iloc[:, :len(expected_columns)]
+    df.columns = expected_columns[:len(df.columns)]
+
+    # 누락 컬럼 자동 보정
+    rename_map = {
+        "데이트 선호 주기": "데이트 선호 주기(레이디)"
+    }
+    df = df.rename(columns=rename_map)
 
     return df.drop(columns=[
-        "응답 시간", "손톱길이(농담)", "연애 텀", "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
+        "응답 시간", "손톱길이(농담)", "연애 텀",
+        "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
     ], errors="ignore")
-
 
 def parse_range(text):
     try:
@@ -43,7 +46,8 @@ def parse_range(text):
             parts = text.replace(' ', '').split('~')
             return float(parts[0]), float(parts[1])
         else:
-            return float(text), float(text)
+            val = float(text)
+            return val, val
     except:
         return None, None
 
@@ -72,11 +76,11 @@ def satisfies_must_conditions(person_a, person_b):
             if (person_a.get("희망하는 거리 조건") == "단거리" or person_b.get("희망하는 거리 조건") == "단거리"):
                 if person_a.get("레이디의 거주 지역") != person_b.get("레이디의 거주 지역"):
                     return False
-        elif cond == "머리 길이":
-            if person_b.get("머리 길이(레이디)") != person_a.get("머리 길이(상대방)"):
-                return False
         elif cond == "성격":
             if person_b.get("성격(레이디)") != person_a.get("성격(상대방)"):
+                return False
+        elif cond == "머리 길이":
+            if person_b.get("머리 길이(레이디)") != person_a.get("머리 길이(상대방)"):
                 return False
         elif cond == "앙큼 레벨":
             a_levels = str(person_a.get("희망 양금 레벨", "")).split(",")
@@ -98,7 +102,7 @@ def match_score(a, b):
     if is_in_range(b["레이디 키"], a["상대방 레이디 키"]): score += 1
     total += 1
 
-    # 거리 조건
+    # 거리
     if (a["희망하는 거리 조건"] == "단거리" or b["희망하는 거리 조건"] == "단거리"):
         if a["레이디의 거주 지역"] == b["레이디의 거주 지역"]: score += 1
     else:
@@ -112,9 +116,13 @@ def match_score(a, b):
         total += 1
 
     for field in ["연락 텀", "머리 길이", "데이트 선호 주기"]:
-        if a[f"{field}(레이디)"] == b[f"{field}(상대방)"]: score += 1
+        real = field + "(레이디)"
+        desired = field + "(상대방)"
+        if real not in a or desired not in b:
+            continue
+        if a[real] == b[desired]: score += 1
         total += 1
-        if b[f"{field}(레이디)"] == a[f"{field}(상대방)"]: score += 1
+        if b[real] == a[desired]: score += 1
         total += 1
 
     if a["성격(레이디)"] == b["성격(상대방)"]: score += 1
@@ -131,10 +139,9 @@ def get_matches(df):
     matches, seen = [], set()
     for a, b in permutations(df.index, 2):
         pa, pb = df.loc[a], df.loc[b]
-        pair_key = tuple(sorted([pa["닉네임"], pb["닉네임"]]))
-        if pair_key in seen:
-            continue
-        seen.add(pair_key)
+        pair = tuple(sorted([pa["닉네임"], pb["닉네임"]]))
+        if pair in seen: continue
+        seen.add(pair)
 
         if not satisfies_must_conditions(pa, pb): continue
         if not satisfies_must_conditions(pb, pa): continue
@@ -142,8 +149,8 @@ def get_matches(df):
         s, t = match_score(pa, pb)
         percent = round((s / t) * 100, 1)
         matches.append({
-            "A 닉네임": pair_key[0],
-            "B 닉네임": pair_key[1],
+            "A 닉네임": pair[0],
+            "B 닉네임": pair[1],
             "매칭 점수": s,
             "총 점수": t,
             "비율(%)": percent,
@@ -151,12 +158,11 @@ def get_matches(df):
         })
     return pd.DataFrame(matches).sort_values(by="매칭 점수", ascending=False)
 
-# 🔄 실행
 # ▶ 실행
 if user_input:
     try:
         raw_df = pd.read_csv(StringIO(user_input), sep="\t", header=None)
-        df = clean_df(raw_df)  # ✅ 함수 이름 수정됨
+        df = clean_df(raw_df)
         st.success("✅ 데이터 분석 성공!")
         st.dataframe(df)
 
