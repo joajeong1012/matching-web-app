@@ -19,12 +19,14 @@ expected_columns = [
     "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
 ]
 
-def clean_columns(df):
-    """빈 칼럼 제거 및 컬럼 이름 정리"""
-    df.columns = expected_columns[:len(df.columns)]
-    return df.drop(columns=["응답 시간", "손톱길이(농담)", "연애 텀",
-                            "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"],
-                   errors="ignore")
+def clean_df(raw_df):
+    df = raw_df.dropna(axis=1, how="all")  # 전부 NaN 열 제거
+    df = df.loc[:, ~df.columns.duplicated()]  # 중복 열 제거
+    df = df.iloc[:, :32]  # 최대 32열만 유지
+    df.columns = expected_columns[:32]
+    return df.drop(columns=[
+        "응답 시간", "손톱길이(농담)", "연애 텀", "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
+    ], errors="ignore")
 
 def parse_range(text):
     try:
