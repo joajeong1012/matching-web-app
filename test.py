@@ -103,49 +103,64 @@ def satisfies_must_conditions(person_a, person_b):
 def match_score(a, b):
     score, total = 0, 0
 
-    if is_in_range_list(a["레이디 나이"], b["선호하는 상대방 레이디 나이"]): score += 1
-    total += 1
-    if is_in_range_list(b["레이디 나이"], a["선호하는 상대방 레이디 나이"]): score += 1
-    total += 1
+    # 나이 (가중치: 2점)
+    if is_in_range_list(a["레이디 나이"], b["선호하는 상대방 레이디 나이"]): score += 2
+    total += 10
+    if is_in_range_list(b["레이디 나이"], a["선호하는 상대방 레이디 나이"]): score += 2
+    total += 10
 
+    # 키 (1점)
     if is_in_range(a["레이디 키"], b["상대방 레이디 키"]): score += 1
     total += 1
     if is_in_range(b["레이디 키"], a["상대방 레이디 키"]): score += 1
     total += 1
 
-    # 거리
-    if (a["희망하는 거리 조건"] == "단거리" or b["희망하는 거리 조건"] == "단거리"):
-        if a["레이디의 거주 지역"] == b["레이디의 거주 지역"]: score += 1
+    # 거리 (가중치: 2점)
+    if a["희망하는 거리 조건"] == "단거리" or b["희망하는 거리 조건"] == "단거리":
+        if a["레이디의 거주 지역"] == b["레이디의 거주 지역"]:
+            score += 2
+        total += 2
     else:
+        score += 1
+        total += 1
+
+    # 흡연/음주/타투/벽장/퀴어 지인 多
+    for field in ["흡연", "음주", "타투", "벽장", "퀴어 지인 多"]:
+        a_self, a_wish = a[f"{field}(레이디)"], b[f"{field}(상대방)"]
+        b_self, b_wish = b[f"{field}(레이디)"], a[f"{field}(상대방)"]
+
+        if a_wish == "상관없음" or a_self == a_wish:
+            score += 1
+        total += 1
+
+        if b_wish == "상관없음" or b_self == b_wish:
+            score += 1
+        total += 1
+
+    # 연락 텀, 머리 길이, 데이트 선호 주기
+    for field in ["연락 텀", "머리 길이", "데이트 선호 주기"]:
+        real, desired = field + "(레이디)", field + "(상대방)"
+        if real in a and desired in b:
+            if b[desired] == "상관없음" or a[real] == b[desired]: score += 1
+            total += 1
+        if real in b and desired in a:
+            if a[desired] == "상관없음" or b[real] == a[desired]: score += 1
+            total += 1
+
+    # 성격
+    if b["성격(상대방)"] == "상관없음" or a["성격(레이디)"] == b["성격(상대방)"]:
+        score += 1
+    total += 1
+    if a["성격(상대방)"] == "상관없음" or b["성격(레이디)"] == a["성격(상대방)"]:
         score += 1
     total += 1
 
-    for field in ["흡연", "음주", "타투", "벽장", "퀴어 지인 多"]:
-        if a[f"{field}(레이디)"] == b[f"{field}(상대방)"]: score += 1
-        total += 1
-        if b[f"{field}(레이디)"] == a[f"{field}(상대방)"]: score += 1
-        total += 1
-
-    for field in ["연락 텀", "머리 길이", "데이트 선호 주기"]:
-        real = field + "(레이디)"
-        desired = field + "(상대방)"
-        if real not in a or desired not in b:
-            continue
-        if a[real] == b[desired]: score += 1
-        total += 1
-        if b[real] == a[desired]: score += 1
-        total += 1
-
-    if a["성격(레이디)"] == b["성격(상대방)"]: score += 1
-    total += 1
-    if b["성격(레이디)"] == a["성격(상대방)"]: score += 1
-    total += 1
-
-    if list_overlap(str(a["양금 레벨"]).split(","), str(b["희망 양금 레벨"]).split(",")): score += 1
+    # 앙금 레벨
+    if list_overlap(str(a["양금 레벨"]).split(","), str(b["희망 양금 레벨"]).split(",")):
+        score += 1
     total += 1
 
     return score, total
-
 # 전체 매칭 계산
 def get_matches(df):
     matches, seen = [], set()
