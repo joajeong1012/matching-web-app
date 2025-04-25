@@ -105,9 +105,9 @@ def match_score(a, b):
 
     # 나이 (가중치: 2점)
     if is_in_range_list(a["레이디 나이"], b["선호하는 상대방 레이디 나이"]): score += 2
-    total += 10
+    total += 1
     if is_in_range_list(b["레이디 나이"], a["선호하는 상대방 레이디 나이"]): score += 2
-    total += 10
+    total += 1
 
     # 키 (1점)
     if is_in_range(a["레이디 키"], b["상대방 레이디 키"]): score += 1
