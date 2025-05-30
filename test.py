@@ -191,7 +191,13 @@ def get_matches(df):
     matches, seen = [], set()
     for a, b in permutations(df.index, 2):
         pa, pb = df.loc[a], df.loc[b]
+        if "닉네임" not in df.columns:
+            st.error("❌ '닉네임' 컬럼이 없습니다. 실제 컬럼명은 아래를 확인하세요.")
+            st.write("📋 현재 컬럼들:", df.columns.tolist())
+            st.stop()
+        
         pair = tuple(sorted([pa["닉네임"], pb["닉네임"]]))
+
         if pair in seen: continue
         seen.add(pair)
 
@@ -224,7 +230,7 @@ if user_input:
             st.error("❌ '닉네임' 컬럼이 존재하지 않아요! 컬럼명을 다시 확인해주세요.")
             st.write("📋 현재 컬럼 목록:", list(df.columns))
             st.stop()
-
+        st.write("📋 현재 컬럼 목록:", df.columns.tolist())
         result = get_matches(df)
         st.subheader("💘 매칭 결과")
 
