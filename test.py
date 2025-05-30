@@ -14,44 +14,71 @@ user_input = st.text_area("📥 응답 데이터를 붙여넣으세요", height=
 
 # ===================== 유틸 함수 ============================
 def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
-    """열 이름 정리 + 숫자형 변환 + 빠진 열 채우기"""
-    df = raw_df.dropna(axis=1, how="all")            # 빈 열 제거
-    df = df.loc[:, ~df.columns.duplicated()]         # 중복 열 제거
+    """
+    ──────────────────────────────────────────────────────────────
+    • 열 이름 공백·개행 제거, 중복 열 제거
+    • 긴 질문 형태의 제목 → 표준 이름(닉네임, 레이디 키, 레이디 나이 등) 자동 매핑
+    • 숫자형(키·나이) float 변환
+    • 존재하지 않는 '(상대방)' 계열 열은 '상관없음' 기본값으로 생성
+    • 필요 없는 열(drop_cols) 제거
+    ──────────────────────────────────────────────────────────────
+    """
+    # 1) 기본 정리
+    df = raw_df.dropna(axis=1, how="all")
+    df = df.loc[:, ~df.columns.duplicated()]
     df.columns = (
-        df.columns.str.strip()
-        .str.replace(r"\s+", " ", regex=True)        # 공백·개행 치환
+        df.columns.str.strip()            # 앞뒤 공백
+                 .str.replace(r"\s+", " ", regex=True)  # 연속 공백·개행을 한 칸으로
     )
 
-    # ── 열 이름 표준화 ───────────────────────────────────
+    # 2) 표준 이름 매핑 테이블
     rename_map = {
-        "데이트 선호 주기": "데이트 선호 주기(레이디)",
+        "데이트 선호 주기": "데이트 선호 주기(레이디)"
     }
-    # 긴 문장으로 저장된 닉네임 열 자동 탐색 → "닉네임"으로 변경
-    nick_cols = [c for c in df.columns if "닉네임" in c]
-    if nick_cols:
-        rename_map[nick_cols[0]] = "닉네임"
+
+    # 2-1) 키워드별 자동 탐색 → 표준 이름 지정
+    keywords = {
+        "닉네임": "닉네임",
+        "레이디 나이": "레이디 나이",
+        "선호하는 상대방 레이디 나이": "선호하는 상대방 레이디 나이",
+        "레이디 키": "레이디 키",
+        "상대방 레이디 키": "상대방 레이디 키",
+        "레이디의 거주 지역": "레이디의 거주 지역",
+        "희망하는 거리 조건": "희망하는 거리 조건",
+    }
+    for std_name, kw in keywords.items():
+        if std_name not in df.columns:
+            hits = [c for c in df.columns if kw in c]
+            if hits:
+                rename_map[hits[0]] = std_name
+
+    # 2-2) 실제 이름 변경
     df = df.rename(columns=rename_map)
 
-    # ── 숫자형 컬럼 변환 ────────────────────────────────
+    # 3) 숫자형 열(float) 변환
     for col in ["레이디 키", "레이디 나이"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # ── 없는 열 기본값 채우기 (상관없음) ───────────────────
-    default_missing = [
+    # 4) 빠질 수 있는 (상대방) 열 기본값 채우기
+    fill_with_none = [
         "데이트 선호 주기(상대방)", "연락 텀(상대방)", "머리 길이(상대방)",
-        "흡연(상대방)", "음주(상대방)", "타투(상대방)", "벽장(상대방)", "퀴어 지인 多(상대방)"
+        "흡연(상대방)", "음주(상대방)", "타투(상대방)",
+        "벽장(상대방)", "퀴어 지인 多(상대방)"
     ]
-    for col in default_missing:
-        if col not in df.columns:
-            df[col] = "상관없음"
+    for c in fill_with_none:
+        if c not in df.columns:
+            df[c] = "상관없음"
 
-    # ── 불필요한 열 제거 ────────────────────────────────
+    # 5) 분석에 필요 없는 열 제거
     drop_cols = [
         "응답 시간", "손톱길이(농담)", "연애 텀", "",
         "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
     ]
-    return df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
+    df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
+
+    return df
+
 
 def parse_range(text):
     try:
