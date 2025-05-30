@@ -51,7 +51,7 @@ def clean_df(df):
 # ---------- 유틸 ----------
 def parse_range(t):
     if pd.isna(text) or str(text).strip() == "":
-    if pd.isna(t): return (None, None)
+        return (None, None)
     t = str(t).strip()
     if "~" in t:
         a, b = t.replace(" ", "").split("~")
