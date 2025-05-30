@@ -45,6 +45,7 @@ def clean_df(df):
 
     df = df.drop(columns=[c for c in drop_columns if c in df.columns], errors="ignore")
     df = df.loc[:, ~df.columns.duplicated()]
+    df = df.fillna("")
     return df
 
 # ---------- 유틸 ----------
