@@ -43,18 +43,11 @@ def parse_range(text):
         if not text or text == "~": return None, None
         if '~' in text:
             parts = text.replace(' ', '').split('~')
-            if len(parts) == 2:
-                try:
-                    return float(parts[0]), float(parts[1])
-                except:
-                    return None, None
-            else:
-                return None, None
+            return float(parts[0]), float(parts[1]) if len(parts) == 2 else (None, None)
         else:
             return float(text), float(text)
     except:
         return None, None
-
 
 def is_in_range(val, range_text):
     try:
@@ -71,16 +64,6 @@ def is_in_range_list(val, range_texts):
 def list_overlap(list1, list2):
     return any(a.strip() in [b.strip() for b in list2] for a in list1 if a.strip())
 
-def is_preference_match(preference_value, target_value):
-    """
-    '긴, 짧' 형태에서도 '상관없음'이 포함돼 있으면 True,
-    또는 정확히 일치하면 True
-    """
-    if pd.isna(preference_value) or pd.isna(target_value):
-        return False
-    pref_list = [x.strip() for x in str(preference_value).split(",")]
-    return "상관없음" in pref_list or str(target_value).strip() in pref_list
-
 # ===================== 조건 비교 ============================
 def satisfies_must_conditions(person_a, person_b):
     musts = str(person_a.get("꼭 맞아야 조건들", "")).split(",")
@@ -90,10 +73,10 @@ def satisfies_must_conditions(person_a, person_b):
             if person_a["레이디의 거주 지역"] != person_b["레이디의 거주 지역"]:
                 return False
         elif cond == "성격":
-            if not is_preference_match(person_a["성격(상대방)"], person_b["성격(레이디)"]):
+            if person_b["성격(레이디)"] != person_a["성격(상대방)"]:
                 return False
         elif cond == "머리 길이":
-            if not is_preference_match(person_a["머리 길이(상대방)"], person_b["머리 길이(레이디)"]):
+            if person_b["머리 길이(레이디)"] != person_a["머리 길이(상대방)"]:
                 return False
         elif cond == "앙큼 레벨":
             if not list_overlap(
@@ -144,34 +127,33 @@ def match_score(a, b):
         a_self, a_wish = a[f"{field}(레이디)"], b[f"{field}(상대방)"]
         b_self, b_wish = b[f"{field}(레이디)"], a[f"{field}(상대방)"]
 
-        if is_preference_match(a_wish, a_self):
+        if a_wish == "상관없음" or a_self == a_wish:
             score += 1
             matched_conditions.append(f"A {field}")
         total += 1
 
-        if is_preference_match(b_wish, b_self):
+        if b_wish == "상관없음" or b_self == b_wish:
             score += 1
             matched_conditions.append(f"B {field}")
         total += 1
 
-    # 선호형 항목들
     for field in ["연락 텀", "머리 길이", "데이트 선호 주기"]:
         r, d = field + "(레이디)", field + "(상대방)"
-        if is_preference_match(b[d], a[r]):
+        if r in a and d in b and (b[d] == "상관없음" or a[r] == b[d]):
             score += 1
             matched_conditions.append(f"A {field}")
         total += 1
-        if is_preference_match(a[d], b[r]):
+        if r in b and d in a and (a[d] == "상관없음" or b[r] == a[d]):
             score += 1
             matched_conditions.append(f"B {field}")
         total += 1
 
     # 성격
-    if is_preference_match(b["성격(상대방)"], a["성격(레이디)"]):
+    if b["성격(상대방)"] == "상관없음" or a["성격(레이디)"] == b["성격(상대방)"]:
         score += 1
         matched_conditions.append("A 성격")
     total += 1
-    if is_preference_match(a["성격(상대방)"], b["성격(레이디)"]):
+    if a["성격(상대방)"] == "상관없음" or b["성격(레이디)"] == a["성격(상대방)"]:
         score += 1
         matched_conditions.append("B 성격")
     total += 1
