@@ -50,6 +50,7 @@ def clean_df(df):
 
 # ---------- 유틸 ----------
 def parse_range(t):
+    if pd.isna(text) or str(text).strip() == "":
     if pd.isna(t): return (None, None)
     t = str(t).strip()
     if "~" in t:
@@ -58,9 +59,13 @@ def parse_range(t):
     return (float(t), float(t))
 
 def is_in_range(v, rng):
-    if pd.isna(v) or pd.isna(rng): return False
-    lo, hi = parse_range(rng)
-    return lo is not None and lo <= float(v) <= hi
+    if pd.isna(val) or pd.isna(range_text) or str(range_text).strip() == "":   # ← 추가
+        return False
+    try:
+        lo, hi = parse_range(range_text)
+        return lo is not None and lo <= float(val) <= hi
+    except ValueError:
+        return False   # 잘못된 숫자·빈문자면 False
 
 def is_in_range_list(v, txt):
     lst = str(txt).split(",") if pd.notna(txt) else []
