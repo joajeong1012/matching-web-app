@@ -52,11 +52,21 @@ drop_columns = [
 
 # ===================== 유틸 함수 ============================
 def clean_df(raw_df):
-    raw_df.columns = [str(col).replace("\n", " ").replace('"', "").replace("  ", " ").strip() for col in raw_df.columns]
-    df = raw_df.rename(columns=column_mapping)
-    df = df.drop(columns=[col for col in drop_columns if col in df.columns], errors="ignore")
-    df = df.loc[:, ~df.columns.duplicated()]
-    return df
+    # ① 컬럼 문자열 정리
+    raw_df.columns = [str(c).replace("\n", " ").replace('"', "").strip() for c in raw_df.columns]
+
+    # ② ★ ‘닉네임’ 자동 탐색·변경 ★
+    for col in raw_df.columns:
+        if "닉네임" in col and "레개팅" in col:   # 키워드 조건 마음대로 더 추가 가능
+            raw_df = raw_df.rename(columns={col: "닉네임"})
+            break
+
+    # ③ 나머지 컬럼도 자동‧수동 매핑 적용
+    raw_df = raw_df.rename(columns=column_mapping)
+    raw_df = raw_df.drop(columns=[c for c in drop_columns if c in raw_df.columns], errors="ignore")
+    raw_df = raw_df.loc[:, ~raw_df.columns.duplicated()]
+    return raw_df
+
 
 
 def parse_range(text):
