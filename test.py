@@ -3,7 +3,6 @@ import pandas as pd
 from io import StringIO
 from itertools import permutations
 
-# ===================== UI 설정 ============================
 st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
 
 st.title("💘 레이디 이어주기 매칭 분석기 2.0")
@@ -12,7 +11,6 @@ st.markdown("양식: 탭으로 구분된 데이터. 전체 응답 복사 → 붙
 
 user_input = st.text_area("📥 응답 데이터를 붙여넣으세요", height=300)
 
-# ===================== 유틸 함수 ============================
 def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
     df = raw_df.dropna(axis=1, how="all")
     df = df.loc[:, ~df.columns.duplicated()]
@@ -62,7 +60,6 @@ def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = "상관없음"
 
     df["레이디 키"] = pd.to_numeric(df.get("레이디 키", pd.Series(dtype=float)), errors="coerce")
-    # df["레이디 나이"]는 float으로 바꾸지 않음 (범위 비교 위해)
 
     return df
 
@@ -74,11 +71,25 @@ def parse_range(text):
         text = text.replace("이하", "~1000").replace("이상", "0~")
         if '~' in text:
             parts = text.replace(' ', '').split('~')
-            return float(parts[0]), float(parts[1]) if len(parts) == 2 else (None, None)
+            if len(parts) == 2:
+                return float(parts[0]), float(parts[1])
+            elif text.startswith('~'):
+                return 0.0, float(parts[1])
+            elif text.endswith('~'):
+                return float(parts[0]), 1000.0
         else:
             return float(text), float(text)
     except:
         return None, None
+
+def convert_range_to_average(val):
+    try:
+        min_val, max_val = parse_range(val)
+        if min_val is not None and max_val is not None:
+            return (min_val + max_val) / 2
+    except:
+        pass
+    return None
 
 def is_in_range(val, range_text):
     try:
@@ -128,22 +139,26 @@ def match_score(a, b):
     score, total = 0, 0
     matched = []
 
-    if is_in_range_list(a.get("레이디 키"), b.get("상대방 레이디 키")):
-        score += 1
-        matched.append("A 키 → B 선호")
-    total += 1
-    if is_in_range_list(b.get("레이디 키"), a.get("상대방 레이디 키")):
-        score += 1
-        matched.append("B 키 → A 선호")
-    total += 1
+    # 나이는 평균값으로 변환 후 비교
+    a_age = convert_range_to_average(a.get("레이디 나이"))
+    b_age = convert_range_to_average(b.get("레이디 나이"))
 
-    if is_in_range_list(a.get("레이디 나이"), b.get("선호하는 상대방 레이디 나이")):
+    if is_in_range_list(a_age, b.get("선호하는 상대방 레이디 나이")):
         score += 2
         matched.append("A 나이 → B 선호")
     total += 1
-    if is_in_range_list(b.get("레이디 나이"), a.get("선호하는 상대방 레이디 나이")):
+    if is_in_range_list(b_age, a.get("선호하는 상대방 레이디 나이")):
         score += 2
         matched.append("B 나이 → A 선호")
+    total += 1
+
+    if is_in_range(a.get("레이디 키"), b.get("상대방 레이디 키")):
+        score += 1
+        matched.append("A 키 → B 선호")
+    total += 1
+    if is_in_range(b.get("레이디 키"), a.get("상대방 레이디 키")):
+        score += 1
+        matched.append("B 키 → A 선호")
     total += 1
 
     if a.get("희망하는 거리 조건") == "단거리" or b.get("희망하는 거리 조건") == "단거리":
@@ -201,7 +216,6 @@ def match_score(a, b):
 
     return score, total, matched
 
-# ===================== 실행 ============================
 if user_input:
     try:
         raw_df = pd.read_csv(StringIO(user_input), sep="\t")
