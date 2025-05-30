@@ -49,34 +49,39 @@ def clean_df(df):
     return df
 
 # ---------- 유틸 ----------
-def parse_range(t):
+def parse_range(text):
+    """'160~170' -> (160,170) , '165' -> (165,165) , 빈칸/NaN -> (None,None)"""
     if pd.isna(text) or str(text).strip() == "":
         return (None, None)
-    t = str(t).strip()
+
+    t = str(text).strip()
     if "~" in t:
-        a, b = t.replace(" ", "").split("~")
-        return float(a), float(b or a)
-    return (float(t), float(t))
+        lo, hi = t.replace(" ", "").split("~", 1)     # 1: 좌우에 ~ 1개만 split
+        lo_f = float(lo) if lo != "" else None
+        hi_f = float(hi) if hi != "" else lo_f        # 빈쪽은 다른 쪽 값으로 대체
+        return lo_f, hi_f
+    else:
+        try:
+            f = float(t)
+            return f, f
+        except ValueError:
+            return (None, None)
 
-def is_in_range(v, rng):
-    if pd.isna(val) or pd.isna(range_text) or str(range_text).strip() == "":   # ← 추가
+def is_in_range(value, range_text):
+    """value 가 range_text(여러 형태) 안에 있나?"""
+    if pd.isna(value) or pd.isna(range_text) or str(range_text).strip() == "":
         return False
+
+    lo, hi = parse_range(range_text)
+    if lo is None:
+        return False
+
     try:
-        lo, hi = parse_range(range_text)
-        return lo is not None and lo <= float(val) <= hi
-    except ValueError:
-        return False   # 잘못된 숫자·빈문자면 False
+        v = float(value)
+        return lo <= v <= hi
+    except (ValueError, TypeError):
+        return False
 
-def is_in_range_list(v, txt):
-    lst = str(txt).split(",") if pd.notna(txt) else []
-    return any(is_in_range(v, s.strip()) for s in lst if s.strip())
-
-def to_list(x):
-    return [s.strip() for s in str(x).split(",")] if pd.notna(x) else []
-
-def multi_match(a, b):
-    A, B = to_list(a), to_list(b)
-    return any(x in B for x in A)
 
 # ---------- 점수 ----------
 def score(a, b):
