@@ -40,9 +40,9 @@ def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = "상관없음"
 
     df["레이디 키"] = pd.to_numeric(df.get("레이디 키", pd.Series(dtype=float)), errors="coerce")
-    df["레이디 나이"] = df.get("레이디 나이", "0")
-
+    df["레이디 나이"] = pd.to_numeric(df.get("레이디 나이", pd.Series(dtype=float)), errors="coerce")  # ← 수정
     return df
+
 
 def parse_range(text):
     try:
