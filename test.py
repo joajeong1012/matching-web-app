@@ -4,29 +4,21 @@ from io import StringIO
 from itertools import permutations
 
 # ===================== 페이지 설정 ============================
-st.set_page_config(page_title="레이디 매칭 분석기 3.0", layout="wide")
+st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
 
-st.markdown("<h1 style='color:#f76c6c;'>💘 레이디 이어주기 매칭 분석기 2.0</h1>", unsafe_allow_html=True)
-st.markdown("""
-<style>
-textarea {
-    font-size: 15px !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
+st.markdown("<h1 style='color:#f76c6c;'>💘 레이디 이어주기 매칭 분석기 3.0</h1>", unsafe_allow_html=True)
 st.markdown("#### 📋 구글 폼 응답을 복사해서 붙여넣어주세요 (TSV 형식)")
-st.info("양식: 탭으로 구분된 데이터. 전체 응답 복사 → 붙여넣기 하면 자동 인식돼요 💡")
+st.info("전체 응답을 복사해서 붙여넣으면 자동 분석됩니다. 줄바꿈이나 복수응답도 문제없어요 💡")
 
 user_input = st.text_area("📥 응답 데이터를 붙여넣으세요", height=300)
 
 # ===================== 컬럼 매핑 ============================
 column_mapping = {
-    "오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  \n(오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)": "닉네임",
+    "오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)": "닉네임",
     "레이디 나이": "레이디 나이",
     "선호하는 상대방 레이디 나이": "선호하는 상대방 레이디 나이",
     "레이디의 거주 지역": "레이디의 거주 지역",
-    "희망하는 거리 조건\n": "희망하는 거리 조건",
+    "희망하는 거리 조건": "희망하는 거리 조건",
     "레이디 키를 적어주she레즈 (숫자만 적어주세여자)": "레이디 키",
     "상대방 레이디 키를  적어주she레즈  (예시 : 154~, ~170)": "상대방 레이디 키",
     "[흡연(레이디)]": "흡연(레이디)",
@@ -53,10 +45,14 @@ column_mapping = {
     "꼭 맞아야 하는 조건들은 무엇인가레?": "꼭 맞아야 조건들",
 }
 
-drop_columns = ["긴 or 짧 [손톱 길이 (농담)]", "34열", "28열", "타임스탬프"]
+drop_columns = [
+    "긴 or 짧 [손톱 길이 (농담)]", "34열", "28열",
+    "타임스탬프", "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
+]
 
 # ===================== 유틸 함수 ============================
 def clean_df(raw_df):
+    raw_df.columns = [str(col).replace("\n", " ").strip() for col in raw_df.columns]
     df = raw_df.rename(columns=column_mapping)
     df = df.drop(columns=[col for col in drop_columns if col in df.columns], errors="ignore")
     df = df.loc[:, ~df.columns.duplicated()]
