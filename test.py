@@ -50,19 +50,30 @@ drop_columns = [
     "타임스탬프", "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
 ]
 
-# ===================== 유틸 함수 ============================
 def clean_df(raw_df):
-    # ① 컬럼 문자열 정리
-    raw_df.columns = [str(c).replace("\n", " ").replace('"', "").strip() for c in raw_df.columns]
+    # 1) 줄바꿈·따옴표·중복공백 제거
+    raw_df.columns = [ str(c).replace("\n"," ").replace('"',"").replace("  "," ").strip() 
+                       for c in raw_df.columns ]
 
-    # ② ★ ‘닉네임’ 자동 탐색·변경 ★
-    for col in raw_df.columns:
-        if "닉네임" in col and "레개팅" in col:   # 키워드 조건 마음대로 더 추가 가능
-            raw_df = raw_df.rename(columns={col: "닉네임"})
-            break
+    # 2) 🔥 자동 매핑 규칙 ---------- ★ 여기 추가 ★
+    auto_map = {}
+    for c in raw_df.columns:
+        if "닉네임" in c:          auto_map[c] = "닉네임"
+        elif "레이디 키" in c and "상대방" not in c:
+                                   auto_map[c] = "레이디 키"
+        elif "상대방 레이디 키" in c or ("레이디 키" in c and "상대방" in c):
+                                   auto_map[c] = "상대방 레이디 키"
+        elif "레이디 나이" in c and "상대방" not in c:
+                                   auto_map[c] = "레이디 나이"
+        elif "상대방" in c and "나이" in c:
+                                   auto_map[c] = "선호하는 상대방 레이디 나이"
+        # 필요한 항목을 계속 elif 로 추가하면 됨
+    raw_df = raw_df.rename(columns=auto_map)
 
-    # ③ 나머지 컬럼도 자동‧수동 매핑 적용
+    # 3) 그리고 기존 column_mapping 으로 한번 더 rename
     raw_df = raw_df.rename(columns=column_mapping)
+
+    # 4) 불필요 열 제거·중복 제거
     raw_df = raw_df.drop(columns=[c for c in drop_columns if c in raw_df.columns], errors="ignore")
     raw_df = raw_df.loc[:, ~raw_df.columns.duplicated()]
     return raw_df
