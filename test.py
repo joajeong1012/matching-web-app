@@ -220,6 +220,10 @@ if user_input:
 
         with st.expander("🔍 입력 데이터 보기"):
             st.dataframe(df)
+        if "닉네임" not in df.columns:
+            st.error("❌ '닉네임' 컬럼이 존재하지 않아요! 컬럼명을 다시 확인해주세요.")
+            st.write("📋 현재 컬럼 목록:", list(df.columns))
+            st.stop()
 
         result = get_matches(df)
         st.subheader("💘 매칭 결과")
@@ -228,6 +232,6 @@ if user_input:
             st.warning("😢 매칭 조건을 만족하는 결과가 없습니다.")
         else:
             st.dataframe(result)
-
+        
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
