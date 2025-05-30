@@ -22,12 +22,34 @@ def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
         "닉네임": "닉네임",
         "레이디 나이": "레이디 나이",
         "선호하는 상대방 레이디 나이": "선호하는 상대방 레이디 나이",
-        "레이디 키": "레이디 키",
-        "상대방 레이디 키": "상대방 레이디 키",
+        "레이디 키를 적어주she레즈": "레이디 키",
+        "상대방 레이디 키를 적어주she레즈": "상대방 레이디 키",
         "레이디의 거주 지역": "레이디의 거주 지역",
         "희망하는 거리 조건": "희망하는 거리 조건",
-        "데이트 선호 주기": "데이트 선호 주기(레이디)",
+        "[흡연(레이디)]": "흡연(레이디)",
+        "[흡연(상대방 레이디)]": "흡연(상대방)",
+        "[음주(레이디)]": "음주(레이디)",
+        "[음주(상대방 레이디)]": "음주(상대방)",
+        "[타투(레이디)]": "타투(레이디)",
+        "[타투(상대방 레이디)]": "타투(상대방)",
+        "[벽장(레이디)]": "벽장(레이디)",
+        "[벽장(상대방 레이디)]": "벽장(상대방)",
+        "성격 [성격(레이디)]": "성격(레이디)",
+        "성격 [성격(상대방 레이디)]": "성격(상대방)",
+        "[연락 텀(레이디)]": "연락 텀(레이디)",
+        "[연락 텀(상대방 레이디)]": "연락 텀(상대방)",
+        "[머리 길이(레이디)]": "머리 길이(레이디)",
+        "[머리 길이(상대방 레이디)]": "머리 길이(상대방)",
+        "[데이트 선호 주기]": "데이트 선호 주기(레이디)",
+        "퀴어 지인 [레이디 ]": "퀴어 지인(레이디)",
+        "퀴어 지인 [상대방 레이디]": "퀴어 지인(상대방)",
+        "[퀴어 지인 多 (레이디)]": "퀴어 지인 多(레이디)",
+        "[퀴어 지인 多 (상대방 레이디)]": "퀴어 지인 多(상대방)",
+        "레이디의 앙큼 레벨": "양금 레벨",
+        "상대방 레이디의 앙큼 레벨": "희망 양금 레벨",
+        "꼭 맞아야 하는 조건들은 무엇인가레?": "꼭 맞아야 조건들"
     }
+
     for patt, std in pattern_map.items():
         hits = [c for c in df.columns if patt in c]
         if hits:
@@ -40,9 +62,9 @@ def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = "상관없음"
 
     df["레이디 키"] = pd.to_numeric(df.get("레이디 키", pd.Series(dtype=float)), errors="coerce")
-    df["레이디 나이"] = pd.to_numeric(df.get("레이디 나이", pd.Series(dtype=float)), errors="coerce")  # ← 수정
-    return df
+    df["레이디 나이"] = pd.to_numeric(df.get("레이디 나이", pd.Series(dtype=float)), errors="coerce")
 
+    return df
 
 def parse_range(text):
     try:
@@ -60,7 +82,8 @@ def parse_range(text):
 
 def is_in_range(val, range_text):
     try:
-        val = float(val)
+        if pd.isna(val): return False
+        val = float(str(val).strip())
         min_val, max_val = parse_range(range_text)
         if min_val is None or max_val is None:
             return False
@@ -218,4 +241,3 @@ if user_input:
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
-
