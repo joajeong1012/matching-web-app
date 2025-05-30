@@ -15,32 +15,85 @@ column_mapping = {
     "선호하는 상대방 레이디 나이": "선호하는 상대방 레이디 나이",
     "레이디의 거주 지역": "레이디의 거주 지역",
     "희망하는 거리 조건": "희망하는 거리 조건",
+    # ↓ 아래 항목은 자동 매핑 규칙으로 대체될 수도 있지만 남겨두면 안전
+    "레이디 키": "레이디 키",
+    "상대방 레이디 키": "상대방 레이디 키",
+    "흡연(레이디)": "흡연(레이디)",     "흡연(상대방)": "흡연(상대방)",
+    "음주(레이디)": "음주(레이디)",     "음주(상대방)": "음주(상대방)",
+    "타투(레이디)": "타투(레이디)",     "타투(상대방)": "타투(상대방)",
+    "벽장(레이디)": "벽장(레이디)",     "벽장(상대방)": "벽장(상대방)",
+    "성격(레이디)": "성격(레이디)",     "성격(상대방)": "성격(상대방)",
+    "연락 텀(레이디)": "연락 텀(레이디)","연락 텀(상대방)": "연락 텀(상대방)",
+    "머리 길이(레이디)": "머리 길이(레이디)","머리 길이(상대방)": "머리 길이(상대방)",
+    "데이트 선호 주기(레이디)": "데이트 선호 주기(레이디)",
+    "퀴어 지인(레이디)": "퀴어 지인(레이디)","퀴어 지인(상대방)": "퀴어 지인(상대방)",
+    "퀴어 지인 多(레이디)": "퀴어 지인 多(레이디)","퀴어 지인 多(상대방)": "퀴어 지인 多(상대방)",
+    "양금 레벨": "양금 레벨","희망 양금 레벨": "희망 양금 레벨",
+    "꼭 맞아야 조건들": "꼭 맞아야 조건들",
 }
 drop_columns = ["긴 or 짧 [손톱 길이 (농담)]", "34열", "28열", "타임스탬프"]
 
 # ---------- 정제 ----------
 def clean_df(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = [str(c).replace("\n"," ").replace('"',"").replace("  "," ").strip() for c in df.columns]
+    # ① 따옴표·줄바꿈 → 공백, 중복공백 제거
+    df.columns = [str(c).replace("\n", " ").replace('"', "").replace("  ", " ").strip()
+                  for c in df.columns]
 
+    # ② ▷ 대괄호 [ ... ] 안 글자 통째로 없애기  ◁  ← new
+    df.columns = [re.sub(r"\[.*?\]", "", c).strip() for c in df.columns]
+
+    # ③ 자동 규칙 매핑 ── 헤더가 조금 달라도 인식
     auto = {}
     for c in df.columns:
-        if "닉네임" in c:                 auto[c] = "닉네임"
+        if "닉네임" in c:                     auto[c] = "닉네임"
         elif "레이디 키" in c and "상대방" not in c:
-                                          auto[c] = "레이디 키"
+                                              auto[c] = "레이디 키"
         elif "레이디 키" in c and "상대방" in c:
-                                          auto[c] = "상대방 레이디 키"
+                                              auto[c] = "상대방 레이디 키"
         elif "레이디 나이" in c and "상대방" not in c:
-                                          auto[c] = "레이디 나이"
+                                              auto[c] = "레이디 나이"
         elif "나이" in c and "상대방" in c:
-                                          auto[c] = "선호하는 상대방 레이디 나이"
-        elif "거주 지역" in c:            auto[c] = "레이디의 거주 지역"
-        elif "희망하는 거리 조건" in c:   auto[c] = "희망하는 거리 조건"
-    df = df.rename(columns=auto).rename(columns=column_mapping)
+                                              auto[c] = "선호하는 상대방 레이디 나이"
+        elif "거주 지역" in c:                auto[c] = "레이디의 거주 지역"
+        elif "희망하는 거리 조건" in c:       auto[c] = "희망하는 거리 조건"
+        elif "흡연" in c and "상대방" not in c: auto[c] = "흡연(레이디)"
+        elif "흡연" in c and "상대방" in c:   auto[c] = "흡연(상대방)"
+        elif "음주" in c and "상대방" not in c: auto[c] = "음주(레이디)"
+        elif "음주" in c and "상대방" in c:   auto[c] = "음주(상대방)"
+        elif "타투" in c and "상대방" not in c: auto[c] = "타투(레이디)"
+        elif "타투" in c and "상대방" in c:   auto[c] = "타투(상대방)"
+        elif "벽장" in c and "상대방" not in c: auto[c] = "벽장(레이디)"
+        elif "벽장" in c and "상대방" in c:   auto[c] = "벽장(상대방)"
+        elif "성격" in c and "상대방" not in c: auto[c] = "성격(레이디)"
+        elif "성격" in c and "상대방" in c:   auto[c] = "성격(상대방)"
+        elif "연락 텀" in c and "상대방" not in c: auto[c] = "연락 텀(레이디)"
+        elif "연락 텀" in c and "상대방" in c: auto[c] = "연락 텀(상대방)"
+        elif "머리 길이" in c and "상대방" not in c: auto[c] = "머리 길이(레이디)"
+        elif "머리 길이" in c and "상대방" in c: auto[c] = "머리 길이(상대방)"
+        elif "데이트 선호 주기" in c:        auto[c] = "데이트 선호 주기(레이디)"
+        elif "퀴어 지인" in c and "상대방" not in c and "多" in c:
+                                              auto[c] = "퀴어 지인 多(레이디)"
+        elif "퀴어 지인" in c and "상대방" in c and "多" in c:
+                                              auto[c] = "퀴어 지인 多(상대방)"
+        elif "퀴어 지인" in c and "상대방" not in c:
+                                              auto[c] = "퀴어 지인(레이디)"
+        elif "퀴어 지인" in c and "상대방" in c:
+                                              auto[c] = "퀴어 지인(상대방)"
+        elif "앙큼 레벨" in c and "상대방" not in c:
+                                              auto[c] = "양금 레벨"
+        elif "앙큼 레벨" in c and "상대방" in c:
+                                              auto[c] = "희망 양금 레벨"
+        elif "꼭 맞아야 하는 조건" in c:     auto[c] = "꼭 맞아야 조건들"
+    df = df.rename(columns=auto)
 
-    df = df.drop(columns=[c for c in drop_columns if c in df.columns], errors="ignore")
-    df = df.loc[:, ~df.columns.duplicated()]
-    df = df.fillna("")          # NaN → 빈 문자열
+    # ④ 여전히 매핑 안 된 컬럼은 column_mapping 으로 보충
+    df = df.rename(columns=column_mapping)
+
+    # ⑤ 필요 없는 열 제거, 중복 제거, 빈칸 NaN 변환
+    df = df.drop(columns=[c for c in drop_columns if c in df.columns], errors=\"ignore\")
+    df = df.loc[:, ~df.columns.duplicated()].fillna(\"\")
     return df
+
 
 # ---------- 유틸 ----------
 def parse_range(text):
