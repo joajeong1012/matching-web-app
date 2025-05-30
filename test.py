@@ -5,15 +5,16 @@ from itertools import permutations
 
 # ===================== 페이지 설정 ============================
 st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
+
 st.markdown("<h1 style='color:#f76c6c;'>💘 레이디 이어주기 매칭 분석기 2.0</h1>", unsafe_allow_html=True)
 st.markdown("#### 📋 구글 폼 응답을 복사해서 붙여넣어주세요 (TSV 형식)")
-st.info("복잡한 컬럼명도 자동 인식! 붙여넣기만 하면 분석됩니다 😎")
+st.info("전체 응답을 복사해서 붙여넣으면 자동 분석됩니다. 줄바꿈이나 복수응답도 문제없어요 💡")
 
 user_input = st.text_area("📥 응답 데이터를 붙여넣으세요", height=300)
 
 # ===================== 컬럼 매핑 ============================
 column_mapping = {
-    '오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)': "닉네임",
+    "오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)": "닉네임",
     "레이디 나이": "레이디 나이",
     "선호하는 상대방 레이디 나이": "선호하는 상대방 레이디 나이",
     "레이디의 거주 지역": "레이디의 거주 지역",
@@ -51,12 +52,12 @@ drop_columns = [
 
 # ===================== 유틸 함수 ============================
 def clean_df(raw_df):
-    # 🔥 줄바꿈, 따옴표, 공백 제거 → 컬럼명 정리
     raw_df.columns = [str(col).replace("\n", " ").replace('"', "").strip() for col in raw_df.columns]
     df = raw_df.rename(columns=column_mapping)
     df = df.drop(columns=[col for col in drop_columns if col in df.columns], errors="ignore")
     df = df.loc[:, ~df.columns.duplicated()]
     return df
+
 
 def parse_range(text):
     try:
@@ -89,6 +90,27 @@ def list_overlap(list1, list2):
 def multi_value_match(val1, val2):
     return any(v1.strip() in [v2.strip() for v2 in str(val2).split(",")] for v1 in str(val1).split(","))
 
+# ===================== 조건 비교 ============================
+def satisfies_must_conditions(person_a, person_b):
+    musts = str(person_a.get("꼭 맞아야 조건들", "")).split(",")
+    for cond in musts:
+        cond = cond.strip()
+        if cond == "거리" and "단거리" in person_a["희망하는 거리 조건"]:
+            if person_a["레이디의 거주 지역"] != person_b["레이디의 거주 지역"]:
+                return False
+        elif cond == "성격":
+            if not multi_value_match(person_b["성격(레이디)"], person_a["성격(상대방)"]):
+                return False
+        elif cond == "머리 길이":
+            if not multi_value_match(person_b["머리 길이(레이디)"], person_a["머리 길이(상대방)"]):
+                return False
+        elif cond == "앙큼 레벨":
+            if not list_overlap(
+                str(person_a["희망 양금 레벨"]).split(","),
+                str(person_b["양금 레벨"]).split(",")
+            ):
+                return False
+    return True
 
 # ===================== 매칭 점수 계산 ============================
 def match_score(a, b):
@@ -199,10 +221,13 @@ if user_input:
         with st.expander("🔍 입력 데이터 보기"):
             st.dataframe(df)
 
-        # 👇 get_matches 함수 실행 (이전 코드 이어붙이기 가능)
-        # result = get_matches(df)
-        # st.dataframe(result)
+        result = get_matches(df)
+        st.subheader("💘 매칭 결과")
+
+        if result.empty:
+            st.warning("😢 매칭 조건을 만족하는 결과가 없습니다.")
+        else:
+            st.dataframe(result)
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
-        st.code(f"현재 컬럼 목록: {list(raw_df.columns)}")
