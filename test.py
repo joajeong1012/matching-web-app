@@ -52,7 +52,7 @@ drop_columns = [
 
 # ===================== 유틸 함수 ============================
 def clean_df(raw_df):
-    raw_df.columns = [str(col).replace("\n", " ").replace('"', "").strip() for col in raw_df.columns]
+    raw_df.columns = [str(col).replace("\n", " ").replace('"', "").replace("  ", " ").strip() for col in raw_df.columns]
     df = raw_df.rename(columns=column_mapping)
     df = df.drop(columns=[col for col in drop_columns if col in df.columns], errors="ignore")
     df = df.loc[:, ~df.columns.duplicated()]
@@ -230,7 +230,7 @@ if user_input:
             st.error("❌ '닉네임' 컬럼이 존재하지 않아요! 컬럼명을 다시 확인해주세요.")
             st.write("📋 현재 컬럼 목록:", list(df.columns))
             st.stop()
-        st.write("📋 현재 컬럼 목록:", df.columns.tolist())
+        st.write("🎯 정제된 컬럼명:", raw_df.columns.tolist())
         result = get_matches(df)
         st.subheader("💘 매칭 결과")
 
