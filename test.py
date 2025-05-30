@@ -31,6 +31,11 @@ def clean_df(raw_df):
     df = df.iloc[:, :len(expected_columns)]
     df.columns = expected_columns[:len(df.columns)]
     df = df.rename(columns={"데이트 선호 주기": "데이트 선호 주기(레이디)"})
+
+    # 🔥 숫자형 컬럼 강제 변환!
+    for col in ["레이디 나이", "레이디 키"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
     return df.drop(columns=[
         "응답 시간", "손톱길이(농담)", "연애 텀", "", 
         "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
