@@ -62,7 +62,7 @@ def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = "상관없음"
 
     df["레이디 키"] = pd.to_numeric(df.get("레이디 키", pd.Series(dtype=float)), errors="coerce")
-    df["레이디 나이"] = pd.to_numeric(df.get("레이디 나이", pd.Series(dtype=float)), errors="coerce")
+    # df["레이디 나이"]는 float으로 바꾸지 않음 (범위 비교 위해)
 
     return df
 
@@ -83,7 +83,7 @@ def parse_range(text):
 def is_in_range(val, range_text):
     try:
         if pd.isna(val): return False
-        val = float(str(val).strip())
+        val = float(val)
         min_val, max_val = parse_range(range_text)
         if min_val is None or max_val is None:
             return False
@@ -128,6 +128,15 @@ def match_score(a, b):
     score, total = 0, 0
     matched = []
 
+    if is_in_range_list(a.get("레이디 키"), b.get("상대방 레이디 키")):
+        score += 1
+        matched.append("A 키 → B 선호")
+    total += 1
+    if is_in_range_list(b.get("레이디 키"), a.get("상대방 레이디 키")):
+        score += 1
+        matched.append("B 키 → A 선호")
+    total += 1
+
     if is_in_range_list(a.get("레이디 나이"), b.get("선호하는 상대방 레이디 나이")):
         score += 2
         matched.append("A 나이 → B 선호")
@@ -135,15 +144,6 @@ def match_score(a, b):
     if is_in_range_list(b.get("레이디 나이"), a.get("선호하는 상대방 레이디 나이")):
         score += 2
         matched.append("B 나이 → A 선호")
-    total += 1
-
-    if is_in_range(a.get("레이디 키"), b.get("상대방 레이디 키")):
-        score += 1
-        matched.append("A 키 → B 선호")
-    total += 1
-    if is_in_range(b.get("레이디 키"), a.get("상대방 레이디 키")):
-        score += 1
-        matched.append("B 키 → A 선호")
     total += 1
 
     if a.get("희망하는 거리 조건") == "단거리" or b.get("희망하는 거리 조건") == "단거리":
