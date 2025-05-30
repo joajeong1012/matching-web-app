@@ -36,6 +36,21 @@ def clean_df(raw_df):
         "더 추가하고 싶으신 이상언니(형)과 레이디 소개 간단하게 적어주세요!!"
     ], errors="ignore")
 
+def is_numeric_range(text):
+    try:
+        if pd.isna(text): return False
+        text = str(text).strip()
+        if '~' in text:
+            parts = text.replace(' ', '').split('~')
+            float(parts[0])
+            float(parts[1])
+            return True
+        else:
+            float(text)
+            return True
+    except:
+        return False
+
 def parse_range(text):
     try:
         if pd.isna(text): return None, None
@@ -51,7 +66,7 @@ def parse_range(text):
 
 def is_in_range(val, range_text):
     try:
-        if pd.isna(val) or pd.isna(range_text): return False
+        if not is_numeric_range(range_text): return False
         val = float(str(val).strip())
         min_val, max_val = parse_range(range_text)
         return min_val <= val <= max_val if min_val is not None else False
@@ -64,6 +79,12 @@ def is_in_range_list(val, range_texts):
 def list_overlap(list1, list2):
     return any(a.strip() in [b.strip() for b in list2] for a in list1 if a.strip())
 
+def is_preference_match(preference_value, target_value):
+    if pd.isna(preference_value) or pd.isna(target_value):
+        return False
+    pref_list = [x.strip() for x in str(preference_value).split(",")]
+    return "상관없음" in pref_list or str(target_value).strip() in pref_list
+
 # ===================== 조건 비교 ============================
 def satisfies_must_conditions(person_a, person_b):
     musts = str(person_a.get("꼭 맞아야 조건들", "")).split(",")
@@ -73,10 +94,10 @@ def satisfies_must_conditions(person_a, person_b):
             if person_a["레이디의 거주 지역"] != person_b["레이디의 거주 지역"]:
                 return False
         elif cond == "성격":
-            if person_b["성격(레이디)"] != person_a["성격(상대방)"]:
+            if not is_preference_match(person_a["성격(상대방)"], person_b["성격(레이디)"]):
                 return False
         elif cond == "머리 길이":
-            if person_b["머리 길이(레이디)"] != person_a["머리 길이(상대방)"]:
+            if not is_preference_match(person_a["머리 길이(상대방)"], person_b["머리 길이(레이디)"]):
                 return False
         elif cond == "앙큼 레벨":
             if not list_overlap(
@@ -122,38 +143,39 @@ def match_score(a, b):
         matched_conditions.append("거리 무관")
         total += 1
 
-    # 기타 항목 (흡연, 음주 등)
+    # 흡연, 음주 등
     for field in ["흡연", "음주", "타투", "벽장", "퀴어 지인 多"]:
         a_self, a_wish = a[f"{field}(레이디)"], b[f"{field}(상대방)"]
         b_self, b_wish = b[f"{field}(레이디)"], a[f"{field}(상대방)"]
 
-        if a_wish == "상관없음" or a_self == a_wish:
+        if is_preference_match(a_wish, a_self):
             score += 1
             matched_conditions.append(f"A {field}")
         total += 1
 
-        if b_wish == "상관없음" or b_self == b_wish:
+        if is_preference_match(b_wish, b_self):
             score += 1
             matched_conditions.append(f"B {field}")
         total += 1
 
+    # 선호형 항목들
     for field in ["연락 텀", "머리 길이", "데이트 선호 주기"]:
         r, d = field + "(레이디)", field + "(상대방)"
-        if r in a and d in b and (b[d] == "상관없음" or a[r] == b[d]):
+        if is_preference_match(b[d], a[r]):
             score += 1
             matched_conditions.append(f"A {field}")
         total += 1
-        if r in b and d in a and (a[d] == "상관없음" or b[r] == a[d]):
+        if is_preference_match(a[d], b[r]):
             score += 1
             matched_conditions.append(f"B {field}")
         total += 1
 
     # 성격
-    if b["성격(상대방)"] == "상관없음" or a["성격(레이디)"] == b["성격(상대방)"]:
+    if is_preference_match(b["성격(상대방)"], a["성격(레이디)"]):
         score += 1
         matched_conditions.append("A 성격")
     total += 1
-    if a["성격(상대방)"] == "상관없음" or b["성격(레이디)"] == a["성격(상대방)"]:
+    if is_preference_match(a["성격(상대방)"], b["성격(레이디)"]):
         score += 1
         matched_conditions.append("B 성격")
     total += 1
