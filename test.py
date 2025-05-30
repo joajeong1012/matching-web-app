@@ -43,11 +43,18 @@ def parse_range(text):
         if not text or text == "~": return None, None
         if '~' in text:
             parts = text.replace(' ', '').split('~')
-            return float(parts[0]), float(parts[1]) if len(parts) == 2 else (None, None)
+            if len(parts) == 2:
+                try:
+                    return float(parts[0]), float(parts[1])
+                except:
+                    return None, None
+            else:
+                return None, None
         else:
             return float(text), float(text)
     except:
         return None, None
+
 
 def is_in_range(val, range_text):
     try:
