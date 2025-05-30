@@ -18,12 +18,11 @@ def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
     df = df.loc[:, ~df.columns.duplicated()]
     df.columns = df.columns.str.strip().str.replace(r"\s+", " ", regex=True)
 
-    # ── 긴 제목 → 표준 이름 ──
     pattern_map = {
-        "닉네임":        "닉네임",
-        "레이디 나이":   "레이디 나이",
+        "닉네임": "닉네임",
+        "레이디 나이": "레이디 나이",
         "선호하는 상대방 레이디 나이": "선호하는 상대방 레이디 나이",
-        "레이디 키":     "레이디 키",
+        "레이디 키": "레이디 키",
         "상대방 레이디 키": "상대방 레이디 키",
         "레이디의 거주 지역": "레이디의 거주 지역",
         "희망하는 거리 조건": "희망하는 거리 조건",
@@ -34,27 +33,14 @@ def clean_df(raw_df: pd.DataFrame) -> pd.DataFrame:
         if hits:
             df = df.rename(columns={hits[0]: std})
 
-    # 수치형 변환
-    for col in ["레이디 키", "레이디 나이"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # (레이디)/(상대방) 계열 기본값
-    counterpart = [
-        "흡연", "음주", "타투", "벽장", "퀴어 지인 多",
-        "연락 텀", "머리 길이", "데이트 선호 주기",
-        "성격"
-    ]
-    for base in counterpart:
+    for base in ["흡연", "음주", "타투", "벽장", "퀴어 지인 多", "연락 텀", "머리 길이", "데이트 선호 주기", "성격"]:
         for suffix in ["(레이디)", "(상대방)"]:
             col = f"{base}{suffix}"
             if col not in df.columns:
                 df[col] = "상관없음"
 
-    # 누락 방지
-    for key in ["양금 레벨", "희망 양금 레벨", "꼭 맞아야 조건들"]:
-        if key not in df.columns:
-            df[key] = ""
+    df["레이디 키"] = pd.to_numeric(df.get("레이디 키", pd.Series(dtype=float)), errors="coerce")
+    df["레이디 나이"] = df.get("레이디 나이", "0")
 
     return df
 
@@ -63,6 +49,7 @@ def parse_range(text):
         if pd.isna(text): return None, None
         text = str(text).strip()
         if not text or text == "~": return None, None
+        text = text.replace("이하", "~1000").replace("이상", "0~")
         if '~' in text:
             parts = text.replace(' ', '').split('~')
             return float(parts[0]), float(parts[1]) if len(parts) == 2 else (None, None)
@@ -97,8 +84,8 @@ def satisfies_must_conditions(person_a, person_b):
     musts = str(person_a.get("꼭 맞아야 조건들", "")).split(",")
     for cond in musts:
         cond = cond.strip()
-        if cond == "거리" and person_a["희망하는 거리 조건"] == "단거리":
-            if person_a["레이디의 거주 지역"] != person_b["레이디의 거주 지역"]:
+        if cond == "거리" and person_a.get("희망하는 거리 조건") == "단거리":
+            if person_a.get("레이디의 거주 지역") != person_b.get("레이디의 거주 지역"):
                 return False
         elif cond == "성격":
             if not is_preference_match(person_a.get("성격(상대방)", "상관없음"), person_b.get("성격(레이디)", "상관없음")):
@@ -118,63 +105,75 @@ def match_score(a, b):
     score, total = 0, 0
     matched = []
 
-    if is_in_range_list(a["레이디 나이"], b["선호하는 상대방 레이디 나이"]):
-        score += 2; matched.append("A 나이 → B 선호")
+    if is_in_range_list(a.get("레이디 나이"), b.get("선호하는 상대방 레이디 나이")):
+        score += 2
+        matched.append("A 나이 → B 선호")
     total += 1
-    if is_in_range_list(b["레이디 나이"], a["선호하는 상대방 레이디 나이"]):
-        score += 2; matched.append("B 나이 → A 선호")
-    total += 1
-
-    if is_in_range(a["레이디 키"], b["상대방 레이디 키"]):
-        score += 1; matched.append("A 키 → B 선호")
-    total += 1
-    if is_in_range(b["레이디 키"], a["상대방 레이디 키"]):
-        score += 1; matched.append("B 키 → A 선호")
+    if is_in_range_list(b.get("레이디 나이"), a.get("선호하는 상대방 레이디 나이")):
+        score += 2
+        matched.append("B 나이 → A 선호")
     total += 1
 
-    if a["희망하는 거리 조건"] == "단거리" or b["희망하는 거리 조건"] == "단거리":
-        if a["레이디의 거주 지역"] == b["레이디의 거주 지역"]:
-            score += 1; matched.append("거리 일치 (단거리)")
+    if is_in_range(a.get("레이디 키"), b.get("상대방 레이디 키")):
+        score += 1
+        matched.append("A 키 → B 선호")
+    total += 1
+    if is_in_range(b.get("레이디 키"), a.get("상대방 레이디 키")):
+        score += 1
+        matched.append("B 키 → A 선호")
+    total += 1
+
+    if a.get("희망하는 거리 조건") == "단거리" or b.get("희망하는 거리 조건") == "단거리":
+        if a.get("레이디의 거주 지역") == b.get("레이디의 거주 지역"):
+            score += 1
+            matched.append("거리 일치 (단거리)")
         total += 1
     else:
-        score += 1; matched.append("거리 무관")
+        score += 1
+        matched.append("거리 무관")
         total += 1
 
-    for base in ["흡연", "음주", "타투", "벽장", "퀴어 지인 多"]:
-        a_self = a.get(f"{base}(레이디)", "상관없음")
-        a_pref = b.get(f"{base}(상대방)", "상관없음")
-        b_self = b.get(f"{base}(레이디)", "상관없음")
-        b_pref = a.get(f"{base}(상대방)", "상관없음")
+    for field in ["흡연", "음주", "타투", "벽장", "퀴어 지인 多"]:
+        a_self = a.get(f"{field}(레이디)", "상관없음")
+        a_wish = b.get(f"{field}(상대방)", "상관없음")
+        b_self = b.get(f"{field}(레이디)", "상관없음")
+        b_wish = a.get(f"{field}(상대방)", "상관없음")
 
-        if is_preference_match(a_pref, a_self):
-            score += 1; matched.append(f"A {base}")
+        if is_preference_match(a_wish, a_self):
+            score += 1
+            matched.append(f"A {field}")
         total += 1
-        if is_preference_match(b_pref, b_self):
-            score += 1; matched.append(f"B {base}")
+        if is_preference_match(b_wish, b_self):
+            score += 1
+            matched.append(f"B {field}")
         total += 1
 
-    for base in ["연락 텀", "머리 길이", "데이트 선호 주기"]:
-        a_self = a.get(f"{base}(레이디)", "상관없음")
-        a_pref = b.get(f"{base}(상대방)", "상관없음")
-        b_self = b.get(f"{base}(레이디)", "상관없음")
-        b_pref = a.get(f"{base}(상대방)", "상관없음")
-
-        if is_preference_match(a_pref, a_self):
-            score += 1; matched.append(f"A {base}")
+    for field in ["연락 텀", "머리 길이", "데이트 선호 주기"]:
+        r, d = field + "(레이디)", field + "(상대방)"
+        if is_preference_match(b.get(d, "상관없음"), a.get(r, "상관없음")):
+            score += 1
+            matched.append(f"A {field}")
         total += 1
-        if is_preference_match(b_pref, b_self):
-            score += 1; matched.append(f"B {base}")
+        if is_preference_match(a.get(d, "상관없음"), b.get(r, "상관없음")):
+            score += 1
+            matched.append(f"B {field}")
         total += 1
 
     if is_preference_match(b.get("성격(상대방)", "상관없음"), a.get("성격(레이디)", "상관없음")):
-        score += 1; matched.append("A 성격")
+        score += 1
+        matched.append("A 성격")
     total += 1
     if is_preference_match(a.get("성격(상대방)", "상관없음"), b.get("성격(레이디)", "상관없음")):
-        score += 1; matched.append("B 성격")
+        score += 1
+        matched.append("B 성격")
     total += 1
 
-    if list_overlap(str(a.get("양금 레벨", "")).split(","), str(b.get("희망 양금 레벨", "")).split(",")):
-        score += 1; matched.append("앙금 레벨")
+    if list_overlap(
+        str(a.get("양금 레벨", "")).split(","),
+        str(b.get("희망 양금 레벨", "")).split(",")
+    ):
+        score += 1
+        matched.append("앙금 레벨")
     total += 1
 
     return score, total, matched
@@ -186,14 +185,14 @@ if user_input:
         df = clean_df(raw_df)
 
         st.success("✅ 데이터 정제 완료!")
-        with st.expander("🔍 입력 데이터 보기"):
+        with st.expander("🔍 정제된 데이터 보기"):
             st.dataframe(df)
 
         matches = []
         seen = set()
         for a, b in permutations(df.index, 2):
             pa, pb = df.loc[a], df.loc[b]
-            pair = tuple(sorted([pa["닉네임"], pb["닉네임"]]))
+            pair = tuple(sorted([pa.get("닉네임"), pb.get("닉네임")]))
             if pair in seen: continue
             seen.add(pair)
             if not satisfies_must_conditions(pa, pb) or not satisfies_must_conditions(pb, pa):
@@ -219,3 +218,4 @@ if user_input:
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
+
