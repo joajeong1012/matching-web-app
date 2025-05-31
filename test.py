@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 from itertools import permutations
+import matplotlib.pyplot as plt
 
 # ===================== Streamlit UI =====================
 st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
@@ -18,13 +19,13 @@ run = st.button("🔍 매칭 분석 시작하기")
 
 # ===================== 전처리 함수 =====================
 def clean_column_names(df):
-    df.columns = df.columns.str.strip().str.replace("\n", " ").str.replace("  +", " ", regex=True)
+    df.columns = df.columns.str.strip().str.replace("\n", "").str.replace("  +", " ", regex=True)
     rename_dict = {
-        '오늘 레개팅에서 쓰실 닉네임은 무엇인가레? (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)': '닉네임',
+        '오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)': '닉네임',
         '레이디 나이': '나이',
         '선호하는 상대방 레이디 나이': '선호 나이',
         '레이디 키를 적어주she레즈 (숫자만 적어주세여자)': '키',
-        '상대방 레이디 키를 적어주she레즈 (예시 : 154~, ~170)': '선호 키',
+        '상대방 레이디 키를  적어주she레즈  (예시 : 154~, ~170)': '선호 키',
         '레이디의 거주 지역': '지역',
         '희망하는 거리 조건': '거리 조건',
         '성격 [성격(레이디)]': '성격',
@@ -42,13 +43,9 @@ def clean_column_names(df):
         '[벽장(상대방 레이디)]': '선호 벽장',
         '[데이트 선호 주기]': '데이트 주기'
     }
-    for key in rename_dict:
-        for col in df.columns:
-            if key.strip() in col:
-                df = df.rename(columns={col: rename_dict[key]})
+    df = df.rename(columns={k: v for k, v in rename_dict.items() if k in df.columns})
     return df
 
-# ===================== 분석 유틸 =====================
 def parse_range(txt):
     try:
         if pd.isna(txt): return None, None
@@ -117,7 +114,7 @@ def match_score(a, b):
 # ===================== 실행 =====================
 if run and user_input:
     try:
-        raw_df = pd.read_csv(StringIO(user_input), sep="\t")
+        raw_df = pd.read_csv(StringIO(user_input), sep="\t", mangle_dupe_cols=True)
         df = clean_column_names(raw_df)
         df = df.dropna(subset=['닉네임'])
         df = df[df['닉네임'].str.strip() != ""]
@@ -147,6 +144,15 @@ if run and user_input:
         else:
             st.subheader("💘 매칭 결과 전체 보기")
             st.dataframe(res_df, use_container_width=True)
+
+            # ===================== 시각화 =====================
+            st.subheader("📊 매칭 퍼센트 분포 시각화")
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.hist(res_df["퍼센트(%)"], bins=10, edgecolor='black')
+            ax.set_xlabel("퍼센트(%)")
+            ax.set_ylabel("매칭 수")
+            ax.set_title("💖 매칭 퍼센트 분포")
+            st.pyplot(fig)
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
