@@ -117,12 +117,14 @@ if run and user_input:
             rows.append({'A':A['닉네임'],'B':B['닉네임'],
                          '점수':f'{s}/{total}','퍼센트(%)':round(s/total*100,1),
                          '일치 조건':', '.join(why)})
-        res=pd.DataFrame(rows).sort_values('퍼센트(%)',ascending=False)
+        res = pd.DataFrame(rows)
         if res.empty:
             st.warning("😢 조건을 만족하는 매칭이 없습니다.")
         else:
+            res = res.sort_values("퍼센트(%)", ascending=False)
             st.subheader("💘 매칭 결과")
-            st.dataframe(res,use_container_width=True)
+            st.dataframe(res, use_container_width=True)
+
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
