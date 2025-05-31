@@ -2,11 +2,17 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 from itertools import permutations
+import random
 
-st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
-st.title("💘 레이디 이어주기 매칭 분석기 (v3.3)")
-st.markdown("#### 📋 구글 폼 TSV 응답을 복사해서 붙여넣어 주세요")
-user_input = st.text_area("📥 TSV 데이터 붙여넣기", height=300)
+st.set_page_config(page_title="💘 레이디 이어주기 매칭 분석기", layout="wide")
+
+st.markdown("""
+    <h1 style='text-align: center; color: #FF69B4;'>💘 레이디 이어주기 매칭 분석기 3.4</h1>
+    <p style='text-align: center; font-size:18px;'>나와 맞는 레이디는 누굴까? 조건을 바탕으로 찰떡 궁합을 찾아드릴게요 💑</p>
+""", unsafe_allow_html=True)
+
+with st.expander("📤 TSV 데이터 입력하기"):
+    user_input = st.text_area("📥 구글 폼 TSV 응답 데이터를 복사해서 붙여넣으세요", height=300)
 
 # ---------- 전처리 ----------
 def tidy_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -96,42 +102,49 @@ def multi_pref_match(pref, target):
 def calc_score(a, b):
     score = 0
     total = 0
+    matched = []
 
     for person1, person2 in [(a, b), (b, a)]:
         # 나이
-        total += POINTS["나이"]
+        total += 1
         if in_range_list(person1["나이"], person2["선호 나이"]):
-            score += POINTS["나이"]
+            score += 1
+            matched.append("나이")
 
         # 키
-        total += POINTS["키"]
+        total += 1
         if in_range(person1["키"], person2["선호 키"]):
-            score += POINTS["키"]
+            score += 1
+            matched.append("키")
 
         # 거리
-        total += POINTS["거리"]
+        total += 1
         if "단거리" not in person1["거리 조건"] or person1["지역"] == person2["지역"]:
-            score += POINTS["거리"]
+            score += 1
+            matched.append("거리")
 
         # 성격
-        total += POINTS["성격"]
+        total += 1
         if multi_pref_match(person1["선호 성격"], person2["성격"]):
-            score += POINTS["성격"]
+            score += 1
+            matched.append("성격")
 
         # 기타 선호 조건
         for self_col, pref_col in PREF_FIELDS:
-            total += POINTS["기타 선호"]
+            total += 1
             if multi_pref_match(person1[pref_col], person2[self_col]):
-                score += POINTS["기타 선호"]
+                score += 1
+                matched.append(self_col)
 
         # 데이트 주기
         for fld in EXTRA_FIELDS:
+            total += 1
             if fld in person1 and fld in person2 and person1[fld] and person2[fld]:
-                total += POINTS["데이트 주기"]
                 if multi_pref_match(person1[fld], person2[fld]):
-                    score += POINTS["데이트 주기"]
+                    score += 1
+                    matched.append(fld)
 
-    return score, total
+    return score, total, matched
 
 # ---------- 필수 조건 ----------
 def must_satisfied(a, b):
@@ -161,28 +174,35 @@ if user_input:
         df = df.reset_index(drop=True)
 
         st.success("✅ 데이터 정제 완료!")
-        with st.expander("📄 정제된 데이터"):
+        with st.expander("📄 정제된 데이터 보기"):
             st.dataframe(df)
 
-        rows = []
-        seen = set()
-        for i, j in permutations(df.index, 2):
-            if i >= j: continue
-            A, B = df.loc[i], df.loc[j]
-            key = tuple(sorted([A["닉네임"], B["닉네임"]]))
-            if key in seen: continue
-            if not (must_satisfied(A, B) and must_satisfied(B, A)):
-                continue
-            s, t = calc_score(A, B)
-            rows.append({"A": A["닉네임"], "B": B["닉네임"], "점수": f"{s}/{t}", "퍼센트(%)": round(s/t*100, 1)})
-            seen.add(key)
+        if st.button("🔍 매칭 분석 시작하기"):
+            rows = []
+            seen = set()
+            for i, j in permutations(df.index, 2):
+                if i >= j: continue
+                A, B = df.loc[i], df.loc[j]
+                key = tuple(sorted([A["닉네임"], B["닉네임"]]))
+                if key in seen: continue
+                if not (must_satisfied(A, B) and must_satisfied(B, A)):
+                    continue
+                s, t, matched = calc_score(A, B)
+                rows.append({
+                    "A": A["닉네임"],
+                    "B": B["닉네임"],
+                    "점수": f"{s}/{t}",
+                    "퍼센트(%)": round(s/t*100, 1),
+                    "일치 조건": ", ".join(matched)
+                })
+                seen.add(key)
 
-        res = pd.DataFrame(rows).sort_values("퍼센트(%)", ascending=False)
-        if res.empty:
-            st.warning("😢 조건을 만족하는 매칭이 없습니다.")
-        else:
-            st.subheader("💘 매칭 결과")
-            st.dataframe(res.reset_index(drop=True))
+            res = pd.DataFrame(rows).sort_values("퍼센트(%)", ascending=False)
+            if res.empty:
+                st.warning("😢 조건을 만족하는 매칭이 없습니다.")
+            else:
+                st.subheader("💘 매칭 결과표")
+                st.dataframe(res.reset_index(drop=True))
 
     except Exception as err:
         st.error(f"❌ 분석 실패: {err}")
