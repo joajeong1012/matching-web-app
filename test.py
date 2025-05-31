@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from io import StringIO
 from itertools import permutations
-import plotly.express as px
 
 # ===================== Streamlit UI =====================
 st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
@@ -76,6 +76,7 @@ def satisfies_all_conditions(a, b):
     musts = str(a.get("꼭 조건들", "")).split(',')
     for m in musts:
         m = m.strip()
+        if not m: continue
         if m == "거리" and '단거리' in str(a['거리 조건']) and a['지역'] != b['지역']:
             return False
         elif m == "성격" and not multi_in(a['선호 성격'], b['성격']):
@@ -84,8 +85,6 @@ def satisfies_all_conditions(a, b):
             return False
         elif m == "키" and not is_in_range(b.get('키', 0), a.get('선호 키', "")):
             return False
-        elif m == "데이트 주기":
-            continue
     return True
 
 # ===================== 점수 계산 =====================
@@ -146,9 +145,13 @@ if run and user_input:
             st.dataframe(res_df, use_container_width=True)
 
             # ===================== 시각화 =====================
-            st.subheader("📊 매칭 퍼센트 분포 시각화")
-            fig = px.histogram(res_df, x="퍼센트(%)", nbins=10, title="💖 매칭 퍼센트 분포")
-            st.plotly_chart(fig, use_container_width=True)
+            st.subheader("📊 매칭 퍼센트 분포")
+            hist, bins = np.histogram(res_df["퍼센트(%)"], bins=10)
+            hist_df = pd.DataFrame({
+                "구간": [f"{int(bins[i])}~{int(bins[i+1])}" for i in range(len(hist))],
+                "매칭 수": hist
+            })
+            st.bar_chart(hist_df.set_index("구간"))
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
