@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 from itertools import permutations
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 # ===================== Streamlit UI =====================
 st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
@@ -101,7 +101,7 @@ def match_score(a, b):
 
     add("나이", is_in_range_list(a['나이'], b['선호 나이']) or is_in_range_list(b['나이'], a['선호 나이']))
     add("키", is_in_range(a['키'], b['선호 키']) or is_in_range(b['키'], a['선호 키']))
-    add("거리", ("단거리" not in a['거리 조건'] or a['지역'] == b['지역']) or ("단거리" not in b['거리 조건'] or b['지역'] == a['지역']))
+    add("거리", ('단거리' not in a['거리 조건'] or a['지역'] == b['지역']) or ('단거리' not in b['거리 조건'] or b['지역'] == a['지역']))
     add("성격", multi_in(a['선호 성격'], b['성격']) or multi_in(b['선호 성격'], a['성격']))
     add("머리 길이", multi_in(a['선호 머리 길이'], b['머리 길이']) or multi_in(b['선호 머리 길이'], a['머리 길이']))
     add("흡연", a['흡연'] == b['선호 흡연'] or b['흡연'] == a['선호 흡연'])
@@ -147,12 +147,8 @@ if run and user_input:
 
             # ===================== 시각화 =====================
             st.subheader("📊 매칭 퍼센트 분포 시각화")
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.hist(res_df["퍼센트(%)"], bins=10, edgecolor='black')
-            ax.set_xlabel("퍼센트(%)")
-            ax.set_ylabel("매칭 수")
-            ax.set_title("💖 매칭 퍼센트 분포")
-            st.pyplot(fig)
+            fig = px.histogram(res_df, x="퍼센트(%)", nbins=10, title="💖 매칭 퍼센트 분포")
+            st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
