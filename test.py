@@ -2,15 +2,13 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 from itertools import permutations
-import matplotlib.pyplot as plt
 
 # ===================== Streamlit UI =====================
-st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
+st.set_page_config(page_title="레이디 이어주기 매칭 분석기", layout="wide")
 st.markdown("""
 # 💘 레이디 이어주기 매칭 분석기
 
-누가 잘 어울릴까? 서로의 조건을 바탕으로 궁합을 분석해줍니다 💖
-
+누가 잘 어울릴까? 서로의 조건을 바탕으로 궁합을 분석해줍니다 💖  
 TSV 데이터를 붙여넣고 '🔍 매칭 분석 시작하기' 버튼을 눌러주세요!
 """)
 
@@ -145,14 +143,8 @@ if run and user_input:
             st.subheader("💘 매칭 결과 전체 보기")
             st.dataframe(res_df, use_container_width=True)
 
-            # ===================== 시각화 =====================
-            st.subheader("📊 매칭 퍼센트 분포 시각화")
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.hist(res_df["퍼센트(%)"], bins=10, edgecolor='black')
-            ax.set_xlabel("퍼센트(%)")
-            ax.set_ylabel("매칭 수")
-            ax.set_title("💖 매칭 퍼센트 분포")
-            st.pyplot(fig)
+            st.subheader("📊 퍼센트 분포 (내장 차트)")
+            st.bar_chart(res_df["퍼센트(%)"])
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
