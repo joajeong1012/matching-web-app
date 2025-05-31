@@ -10,7 +10,7 @@ st.markdown("""
 TSV 데이터를 붙여넣고 [🔍 매칭 분석 시작하기] 버튼을 눌러주세요!
 """)
 
-user_input = st.text_area("📥 TSV 데이터 붙여넣기", height=300)
+user_input = st.text_area("📥 TSV 데이터 붙여넣기 (헤더 줄바꿈 제거된 상태여야 함)", height=300)
 run = st.button("🔍 매칭 분석 시작하기")
 
 # ===================== 유틸 함수 =====================
@@ -63,7 +63,13 @@ def calc_score(a,b):
 # ===================== 실행 =====================
 if run and user_input:
     try:
-        df = pd.read_csv(StringIO(user_input), sep="\t", engine="python", quoting=3)
+        lines = user_input.splitlines()
+        clean_lines = [line for line in lines if line.count('\t') >= 30]
+        if not clean_lines:
+            st.error("❌ 유효한 TSV 줄이 없습니다. 헤더 포함 전체 복사 붙여넣기를 다시 해주세요.")
+            st.stop()
+        tsv_cleaned = '\n'.join(clean_lines)
+        df = pd.read_csv(StringIO(tsv_cleaned), sep="\t")
         df.columns = [c.strip().replace("\n", " ").replace("  ", " ") for c in df.columns]
         if '닉네임' not in df.columns:
             st.error("❌ '닉네임' 컬럼을 찾을 수 없어요. 줄바꿈 제거된 헤더를 사용하세요.")
