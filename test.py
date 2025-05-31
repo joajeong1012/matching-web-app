@@ -4,7 +4,7 @@ from io import StringIO
 from itertools import permutations
 
 st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
-st.title("💘 레이디 이어주기 매칭 분석기 (v3.2)")
+st.title("💘 레이디 이어주기 매칭 분석기 (v3.3)")
 st.markdown("#### 📋 구글 폼 TSV 응답을 복사해서 붙여넣어 주세요")
 user_input = st.text_area("📥 TSV 데이터 붙여넣기", height=300)
 
@@ -14,7 +14,6 @@ def tidy_cols(df: pd.DataFrame) -> pd.DataFrame:
         df.columns.str.strip().str.replace("\n", " ")
         .str.replace("  +", " ", regex=True)
     )
-    # 닉네임 열 자동 매핑
     nick_cols = [c for c in df.columns if "닉네임" in c]
     if nick_cols:
         df = df.rename(columns={nick_cols[0]: "닉네임"})
@@ -46,7 +45,7 @@ def tidy_cols(df: pd.DataFrame) -> pd.DataFrame:
     df["키"] = pd.to_numeric(df.get("키"), errors="coerce")
     return df
 
-# ---------- 범위 판단 ----------
+# ---------- 범위 ----------
 def parse_range(txt):
     if pd.isna(txt): return None, None
     txt = str(txt).replace("이하", "~1000").replace("이상", "0~").replace(" ", "")
@@ -70,7 +69,7 @@ def in_range(val, rng):
 def in_range_list(val, rngs):
     return any(in_range(val, r.strip()) for r in str(rngs).split(",") if r.strip())
 
-# ---------- 점수 계산 ----------
+# ---------- 점수 ----------
 PREF_FIELDS = [
     ("흡연", "선호 흡연"), ("음주", "선호 음주"), ("타투", "선호 타투"),
     ("벽장", "선호 벽장"), ("머리 길이", "선호 머리 길이"),
@@ -79,11 +78,12 @@ PREF_FIELDS = [
 EXTRA_FIELDS = ["데이트 주기"]
 
 POINTS = {
-    "나이": 2,
-    "키": 2,
+    "나이": 1,
+    "키": 1,
     "거리": 1,
     "성격": 1,
     "기타 선호": 1,
+    "데이트 주기": 1
 }
 
 def multi_pref_match(pref, target):
@@ -97,38 +97,39 @@ def calc_score(a, b):
     score = 0
     total = 0
 
-    # 나이
-    total += POINTS["나이"]
-    if in_range_list(a["나이"], b["선호 나이"]) and in_range_list(b["나이"], a["선호 나이"]):
-        score += POINTS["나이"]
+    for person1, person2 in [(a, b), (b, a)]:
+        # 나이
+        total += POINTS["나이"]
+        if in_range_list(person1["나이"], person2["선호 나이"]):
+            score += POINTS["나이"]
 
-    # 키
-    total += POINTS["키"]
-    if in_range(a["키"], b["선호 키"]) and in_range(b["키"], a["선호 키"]):
-        score += POINTS["키"]
+        # 키
+        total += POINTS["키"]
+        if in_range(person1["키"], person2["선호 키"]):
+            score += POINTS["키"]
 
-    # 거리
-    total += POINTS["거리"]
-    if ("단거리" not in a["거리 조건"] and "단거리" not in b["거리 조건"]) or (a["지역"] == b["지역"]):
-        score += POINTS["거리"]
+        # 거리
+        total += POINTS["거리"]
+        if "단거리" not in person1["거리 조건"] or person1["지역"] == person2["지역"]:
+            score += POINTS["거리"]
 
-    # 성격
-    total += POINTS["성격"]
-    if multi_pref_match(a["선호 성격"], b["성격"]) and multi_pref_match(b["선호 성격"], a["성격"]):
-        score += POINTS["성격"]
+        # 성격
+        total += POINTS["성격"]
+        if multi_pref_match(person1["선호 성격"], person2["성격"]):
+            score += POINTS["성격"]
 
-    # 기타 선호
-    for self_col, pref_col in PREF_FIELDS:
-        total += POINTS["기타 선호"]
-        if multi_pref_match(a[pref_col], b[self_col]) and multi_pref_match(b[pref_col], a[self_col]):
-            score += POINTS["기타 선호"]
+        # 기타 선호 조건
+        for self_col, pref_col in PREF_FIELDS:
+            total += POINTS["기타 선호"]
+            if multi_pref_match(person1[pref_col], person2[self_col]):
+                score += POINTS["기타 선호"]
 
-    # 데이트 주기
-    for fld in EXTRA_FIELDS:
-        if fld in a and fld in b and a[fld] and b[fld]:
-            total += 1
-            if multi_pref_match(a[fld], b[fld]) and multi_pref_match(b[fld], a[fld]):
-                score += 1
+        # 데이트 주기
+        for fld in EXTRA_FIELDS:
+            if fld in person1 and fld in person2 and person1[fld] and person2[fld]:
+                total += POINTS["데이트 주기"]
+                if multi_pref_match(person1[fld], person2[fld]):
+                    score += POINTS["데이트 주기"]
 
     return score, total
 
