@@ -10,13 +10,21 @@ st.title("🌈 레이디 이어주기 매칭 분석기 3.0")
 st.markdown("#### 📋 구글폼 응답 결과를 TSV (탭 구분 데이터) 형식으로 붙여넣어주세요")
 st.markdown("전체 응답 복사 → 아래 텍스트박스에 붙여넣기")
 
-user_input = st.text_area("📥 응답 데이터를 붙여넣으세요", height=300)
+user_input = st.text_area("📅 응답 데이터를 빠지여넣으세요", height=300)
 
 if user_input:
     try:
         data = pd.read_csv(StringIO(user_input), sep="\t", engine="python")
         data.columns = data.columns.str.replace(r"\s+", " ", regex=True).str.strip()
-        nickname_col = [col for col in data.columns if "닉네임" in col][0]
+        data.columns = data.columns.str.replace("\n", " ")
+
+        # 닉네임 컬럼 자동 인식
+        possible_nick_cols = [col for col in data.columns if "닉네임" in col or "쓰실 닉네임" in col]
+        if not possible_nick_cols:
+            st.error("❌ '닉네임'이라는 말이 포함된 컬럼명을 찾을 수 없어요! 헤더에 줄바꿈이 들어간 건 아닌지 확인해주세요.")
+            st.stop()
+        nickname_col = possible_nick_cols[0]
+
         data = data.drop_duplicates(subset=nickname_col)
 
         results = []
@@ -56,8 +64,8 @@ if user_input:
             percent = round(score / total * 100, 2) if total > 0 else 0.0
 
             results.append({
-                "A": a[nickname_col],
-                "B": b[nickname_col],
+                "A": a.get(nickname_col),
+                "B": b.get(nickname_col),
                 "궁합 점수": f"{score} / {total}",
                 "퍼센트(%)": percent,
                 "매칭 사유 요약": ", ".join(reasons)
@@ -76,4 +84,3 @@ if user_input:
         st.error(f"❌ 분석 실패: {e}")
 else:
     st.info("👀 데이터를 붙여넣으면 자동 분석이 시작됩니다!")
-
