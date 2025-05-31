@@ -4,158 +4,170 @@ from io import StringIO
 from itertools import permutations
 
 # ===================== Streamlit UI =====================
-st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
+st.set_page_config(page_title="💘 레이디 매칭 분석기", layout="wide")
 st.markdown("""
 # 💘 레이디 이어주기 매칭 분석기
 
 서로의 조건을 바탕으로 궁합을 분석해줍니다 💖
 
-TSV 데이터를 붙여넣고 '🔍 매칭 분석 시작하기' 버튼을 눌러주세요!
+TSV 데이터를 붙여넣고 **[🔍 매칭 분석 시작하기]** 버튼을 눌러주세요!
 """)
 
 user_input = st.text_area("📥 TSV 데이터 붙여넣기", height=300)
 run = st.button("🔍 매칭 분석 시작하기")
 
 # ===================== 전처리 함수 =====================
-def deduplicate_columns(columns):
+
+def deduplicate_columns(cols: pd.Index) -> pd.Index:
     seen = {}
     new_cols = []
-    for col in columns:
-        if col not in seen:
-            seen[col] = 1
-            new_cols.append(col)
+    for c in cols:
+        if c not in seen:
+            seen[c] = 1
+            new_cols.append(c)
         else:
-            seen[col] += 1
-            new_cols.append(f"{col}.{seen[col]-1}")
-    return new_cols
+            seen[c] += 1
+            new_cols.append(f"{c}.{seen[c]-1}")
+    return pd.Index(new_cols)
 
-def clean_column_names(df):
+# 핵심 컬럼을 부분문자열로 매핑
+PATTERN_MAP = [
+    ("닉네임", "닉네임"),
+    ("레이디 나이", "나이"),
+    ("선호하는 상대방 레이디 나이", "선호 나이"),
+    ("레이디 키를", "키"),
+    ("상대방 레이디 키", "선호 키"),
+    ("레이디의 거주 지역", "지역"),
+    ("희망하는 거리 조건", "거리 조건"),
+    ("성격(레이디)", "성격"),
+    ("성격(상대방 레이디)", "선호 성격"),
+    ("머리 길이(레이디)", "머리 길이"),
+    ("머리 길이(상대방 레이디)", "선호 머리 길이"),
+    ("흡연(레이디)", "흡연"),
+    ("흡연(상대방 레이디)", "선호 흡연"),
+    ("음주(레이디)", "음주"),
+    ("음주(상대방 레이디)", "선호 음주"),
+    ("타투(레이디)", "타투"),
+    ("타투(상대방 레이디)", "선호 타투"),
+    ("벽장(레이디)", "벽장"),
+    ("벽장(상대방 레이디)", "선호 벽장"),
+    ("데이트 선호 주기", "데이트 주기"),
+    ("꼭 맞아야 하는 조건", "꼭 조건들"),
+]
+
+def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    # 1) 중복 이름 해결
     df.columns = deduplicate_columns(df.columns)
-    df.columns = df.columns.str.strip().str.replace("\n", "").str.replace("  +", " ", regex=True)
-    rename_dict = {
-        '오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)': '닉네임',
-        '레이디 나이': '나이',
-        '선호하는 상대방 레이디 나이': '선호 나이',
-        '레이디 키를 적어주she레즈 (숫자만 적어주세여자)': '키',
-        '상대방 레이디 키를  적어주she레즈  (예시 : 154~, ~170)': '선호 키',
-        '레이디의 거주 지역': '지역',
-        '희망하는 거리 조건': '거리 조건',
-        '성격 [성격(레이디)]': '성격',
-        '성격 [성격(상대방 레이디)]': '선호 성격',
-        '[머리 길이(레이디)]': '머리 길이',
-        '[머리 길이(상대방 레이디)]': '선호 머리 길이',
-        '꼭 맞아야 하는 조건들은 무엇인가레?': '꼭 조건들',
-        '[흡연(레이디)]': '흡연',
-        '[흡연(상대방 레이디)]': '선호 흡연',
-        '[음주(레이디)]': '음주',
-        '[음주(상대방 레이디) ]': '선호 음주',
-        '[타투(레이디)]': '타투',
-        '[타투(상대방 레이디)]': '선호 타투',
-        '[벽장(레이디)]': '벽장',
-        '[벽장(상대방 레이디)]': '선호 벽장',
-        '[데이트 선호 주기]': '데이트 주기'
-    }
-    df = df.rename(columns={k: v for k, v in rename_dict.items() if k in df.columns})
+    # 2) 양 끝 공백+따옴표 제거, 줄바꿈 -> 공백
+    df.columns = (df.columns
+                  .str.strip(' "')
+                  .str.replace("\n", " ")
+                  .str.replace("  +", " ", regex=True))
+    # 3) 패턴 기반 매핑
+    for patt, std in PATTERN_MAP:
+        for col in df.columns:
+            if patt in col:
+                df = df.rename(columns={col: std})
+                break
     return df
 
+# ===================== 매칭 로직 =====================
+
 def parse_range(txt):
+    if pd.isna(txt):
+        return None, None
+    txt = str(txt).replace('이하', '~1000').replace('이상', '0~').replace(' ', '')
+    if '~' in txt:
+        s, e = txt.split('~')
+        return float(s or 0), float(e or 1000)
     try:
-        if pd.isna(txt): return None, None
-        txt = str(txt).replace('이하', '~1000').replace('이상', '0~').replace(' ', '')
-        if '~' in txt:
-            s, e = txt.split('~')
-            return float(s), float(e)
-        return float(txt), float(txt)
+        v = float(txt)
+        return v, v
     except:
         return None, None
 
-def is_in_range(val, txt):
+def in_range(val, txt):
     try:
         val = float(val)
-        min_val, max_val = parse_range(txt)
-        if min_val is None or max_val is None: return False
-        return min_val <= val <= max_val
+        s, e = parse_range(txt)
+        return s is not None and s <= val <= e
     except:
         return False
 
-def is_in_range_list(val, txts):
-    return any(is_in_range(val, part.strip()) for part in str(txts).split(',') if part.strip())
+def in_range_list(val, txts):
+    return any(in_range(val, p.strip()) for p in str(txts).split(',') if p.strip())
 
-def multi_in(val_list, target):
-    return any(val.strip() in str(target) for val in str(val_list).split(',') if val.strip() and val.strip() != '상관없음')
+def has_overlap(pref, target):
+    prefs = [p.strip() for p in str(pref).split(',') if p.strip() and p.strip() != '상관없음']
+    return any(p in str(target) for p in prefs)
 
-def satisfies_all_conditions(a, b):
-    musts = str(a.get("꼭 조건들", "")).split(',')
+MANDATORY_CHECKS = {
+    "거리": lambda a, b: not ('단거리' in str(a['거리 조건']) and a['지역'] != b['지역']),
+    "성격": lambda a, b: has_overlap(a['선호 성격'], b['성격']),
+    "머리 길이": lambda a, b: has_overlap(a['선호 머리 길이'], b['머리 길이']),
+    "키": lambda a, b: in_range(b.get('키', 0), a.get('선호 키', '')),
+}
+
+def must_ok(a, b):
+    musts = [m.strip() for m in str(a.get('꼭 조건들', '')).split(',') if m.strip()]
     for m in musts:
-        m = m.strip()
-        if m == "거리" and '단거리' in str(a['거리 조건']) and a['지역'] != b['지역']:
+        if m in MANDATORY_CHECKS and not MANDATORY_CHECKS[m](a, b):
             return False
-        elif m == "성격" and not multi_in(a['선호 성격'], b['성격']):
-            return False
-        elif m == "머리 길이" and not multi_in(a['선호 머리 길이'], b['머리 길이']):
-            return False
-        elif m == "키" and not is_in_range(b.get('키', 0), a.get('선호 키', "")):
-            return False
-        elif m == "데이트 주기":
-            continue
     return True
 
-# ===================== 점수 계산 =====================
-def match_score(a, b):
-    matched = []
-    score, total = 0, 0
-    def add(name, condition):
-        nonlocal score, total
-        total += 1
-        if condition:
-            matched.append(name)
-            score += 1
+SCORE_RULES = [
+    ("나이", lambda a, b: in_range_list(a['나이'], b['선호 나이']) or in_range_list(b['나이'], a['선호 나이'])),
+    ("키", lambda a, b: in_range(a['키'], b['선호 키']) or in_range(b['키'], a['선호 키'])),
+    ("거리", lambda a, b: a['지역'] == b['지역'] or '단거리' not in str(a['거리 조건']) + str(b['거리 조건'])),
+    ("성격", lambda a, b: has_overlap(a['선호 성격'], b['성격']) or has_overlap(b['선호 성격'], a['성격'])),
+    ("머리 길이", lambda a, b: has_overlap(a['선호 머리 길이'], b['머리 길이']) or has_overlap(b['선호 머리 길이'], a['머리 길이'])),
+    ("흡연", lambda a, b: a['흡연'] == b['선호 흡연'] or b['흡연'] == a['선호 흡연']),
+    ("음주", lambda a, b: a['음주'] == b['선호 음주'] or b['음주'] == a['선호 음주']),
+    ("타투", lambda a, b: a['타투'] == b['선호 타투'] or b['타투'] == a['선호 타투']),
+    ("벽장", lambda a, b: a['벽장'] == b['선호 벽장'] or b['벽장'] == a['선호 벽장']),
+]
 
-    add("나이", is_in_range_list(a['나이'], b['선호 나이']) or is_in_range_list(b['나이'], a['선호 나이']))
-    add("키", is_in_range(a['키'], b['선호 키']) or is_in_range(b['키'], a['선호 키']))
-    add("거리", ('단거리' not in a['거리 조건'] or a['지역'] == b['지역']) or ('단거리' not in b['거리 조건'] or b['지역'] == a['지역']))
-    add("성격", multi_in(a['선호 성격'], b['성격']) or multi_in(b['선호 성격'], a['성격']))
-    add("머리 길이", multi_in(a['선호 머리 길이'], b['머리 길이']) or multi_in(b['선호 머리 길이'], a['머리 길이']))
-    add("흡연", a['흡연'] == b['선호 흡연'] or b['흡연'] == a['선호 흡연'])
-    add("음주", a['음주'] == b['선호 음주'] or b['음주'] == a['선호 음주'])
-    add("타투", a['타투'] == b['선호 타투'] or b['타투'] == a['선호 타투'])
-    add("벽장", a['벽장'] == b['선호 벽장'] or b['벽장'] == a['선호 벽장'])
-    add("데이트 주기", True)
-    return score, total, matched
+def calc_score(a, b):
+    score = 0
+    reasons = []
+    for label, func in SCORE_RULES:
+        if func(a, b):
+            score += 1
+            reasons.append(label)
+    # 데이트 주기 무조건 +1 (양쪽 모두 한 번만)
+    score += 1
+    reasons.append('데이트 주기')
+    return score, len(SCORE_RULES) + 1, reasons
 
 # ===================== 실행 =====================
 if run and user_input:
     try:
-        raw_df = pd.read_csv(StringIO(user_input), sep="\t")
-        df = clean_column_names(raw_df)
-        df = df.dropna(subset=['닉네임'])
-        df = df[df['닉네임'].str.strip() != ""]
-        df = df.reset_index(drop=True)
+        df = pd.read_csv(StringIO(user_input), sep='\t')
+        df = clean_column_names(df)
+        df = df[df['닉네임'].str.strip() != ''].reset_index(drop=True)
 
-        st.success("✅ 데이터 정제 완료!")
-        with st.expander("🔍 정제된 데이터 보기"):
+        st.success('✅ 데이터 정제 완료!')
+        with st.expander('정제된 데이터 확인'):
             st.dataframe(df)
 
-        results = []
-        for a, b in permutations(df.index, 2):
-            p1, p2 = df.loc[a], df.loc[b]
-            if not satisfies_all_conditions(p1, p2): continue
-            if not satisfies_all_conditions(p2, p1): continue
-            s, t, matched = match_score(p1, p2)
-            perc = round((s / t) * 100, 1)
-            results.append({
-                "A": p1['닉네임'], "B": p2['닉네임'],
-                "점수": f"{s}/{t}", "퍼센트(%)": perc,
-                "일치 조건": ', '.join(matched)
+        rows = []
+        for i, j in permutations(df.index, 2):
+            a, b = df.loc[i], df.loc[j]
+            if not (must_ok(a, b) and must_ok(b, a)):
+                continue
+            s, total, reasons = calc_score(a, b)
+            rows.append({
+                'A': a['닉네임'], 'B': b['닉네임'],
+                '점수': f'{s}/{total}', '퍼센트(%)': round(s/total*100, 1),
+                '일치 조건': ', '.join(reasons)
             })
 
-        res_df = pd.DataFrame(results).sort_values(by="퍼센트(%)", ascending=False)
-
-        if res_df.empty:
-            st.warning("😢 조건을 만족하는 매칭이 없습니다.")
+        res = pd.DataFrame(rows).sort_values('퍼센트(%)', ascending=False)
+        if res.empty:
+            st.warning('😢 매칭 결과가 없습니다.')
         else:
-            st.subheader("💘 매칭 결과 전체 보기")
-            st.dataframe(res_df, use_container_width=True)
+            st.subheader('💘 매칭 결과')
+            st.dataframe(res, use_container_width=True)
 
     except Exception as e:
-        st.error(f"❌ 분석 실패: {e}")
+        st.error(f'❌ 분석 실패: {e}')
