@@ -3,9 +3,8 @@ import pandas as pd
 from io import StringIO
 from itertools import permutations
 
-# ---------- Streamlit UI ----------
 st.set_page_config(page_title="레이디 매칭 분석기", layout="wide")
-st.title("💘 레이디 이어주기 매칭 분석기 (v3.1)")
+st.title("💘 레이디 이어주기 매칭 분석기 (v3.2)")
 st.markdown("#### 📋 구글 폼 TSV 응답을 복사해서 붙여넣어 주세요")
 user_input = st.text_area("📥 TSV 데이터 붙여넣기", height=300)
 
@@ -77,7 +76,7 @@ PREF_FIELDS = [
     ("벽장", "선호 벽장"), ("머리 길이", "선호 머리 길이"),
 ]
 
-EXTRA_FIELDS = ["데이트 주기"]  # 상관없음/허용 체크용
+EXTRA_FIELDS = ["데이트 주기"]
 
 POINTS = {
     "나이": 2,
@@ -87,10 +86,11 @@ POINTS = {
     "기타 선호": 1,
 }
 
-def preference_ok(pref_value, target_value):
-    if not pref_value: return True
-    pref_list = [x.strip() for x in str(pref_value).split(",")]
-    return "상관없음" in pref_list or str(target_value).strip() in pref_list
+def multi_pref_match(pref, target):
+    if not pref or not target: return False
+    pref_items = set(str(pref).replace(" ", "").split(","))
+    target_items = set(str(target).replace(" ", "").split(","))
+    return bool(pref_items & target_items)
 
 
 def calc_score(a, b):
@@ -107,27 +107,27 @@ def calc_score(a, b):
     if in_range(a["키"], b["선호 키"]) and in_range(b["키"], a["선호 키"]):
         score += POINTS["키"]
 
-    # 거리(지역)
+    # 거리
     total += POINTS["거리"]
     if ("단거리" not in a["거리 조건"] and "단거리" not in b["거리 조건"]) or (a["지역"] == b["지역"]):
         score += POINTS["거리"]
 
     # 성격
     total += POINTS["성격"]
-    if preference_ok(a["선호 성격"], b["성격"]) and preference_ok(b["선호 성격"], a["성격"]):
+    if multi_pref_match(a["선호 성격"], b["성격"]) and multi_pref_match(b["선호 성격"], a["성격"]):
         score += POINTS["성격"]
 
-    # 흡연/음주/타투/벽장/머리 길이 등 기타 선호
+    # 기타 선호
     for self_col, pref_col in PREF_FIELDS:
         total += POINTS["기타 선호"]
-        if preference_ok(a[pref_col], b[self_col]) and preference_ok(b[pref_col], a[self_col]):
+        if multi_pref_match(a[pref_col], b[self_col]) and multi_pref_match(b[pref_col], a[self_col]):
             score += POINTS["기타 선호"]
 
-    # 데이트 주기 (가벼운 보너스)
+    # 데이트 주기
     for fld in EXTRA_FIELDS:
         if fld in a and fld in b and a[fld] and b[fld]:
             total += 1
-            if preference_ok(a[fld], b[fld]) and preference_ok(b[fld], a[fld]):
+            if multi_pref_match(a[fld], b[fld]) and multi_pref_match(b[fld], a[fld]):
                 score += 1
 
     return score, total
@@ -138,15 +138,15 @@ def must_satisfied(a, b):
     for m in musts:
         if m == "거리" and "단거리" in a["거리 조건"] and a["지역"] != b["지역"]:
             return False
-        if m == "성격" and not preference_ok(a["선호 성격"], b["성격"]):
+        if m == "성격" and not multi_pref_match(a["선호 성격"], b["성격"]):
             return False
-        if m == "머리 길이" and not preference_ok(a["선호 머리 길이"], b["머리 길이"]):
+        if m == "머리 길이" and not multi_pref_match(a["선호 머리 길이"], b["머리 길이"]):
             return False
         if m == "키" and not in_range(b["키"], a["선호 키"]):
             return False
-        if m == "흡연" and not preference_ok(a["선호 흡연"], b["흡연"]):
+        if m == "흡연" and not multi_pref_match(a["선호 흡연"], b["흡연"]):
             return False
-        if m == "음주" and not preference_ok(a["선호 음주"], b["음주"]):
+        if m == "음주" and not multi_pref_match(a["선호 음주"], b["음주"]):
             return False
     return True
 
@@ -154,7 +154,10 @@ def must_satisfied(a, b):
 if user_input:
     try:
         raw = pd.read_csv(StringIO(user_input), sep="\t")
-        df = tidy_cols(raw).dropna(subset=["닉네임"]).reset_index(drop=True)
+        df = tidy_cols(raw)
+        df = df.dropna(subset=["닉네임"])
+        df = df[df["닉네임"].str.strip() != ""]
+        df = df.reset_index(drop=True)
 
         st.success("✅ 데이터 정제 완료!")
         with st.expander("📄 정제된 데이터"):
@@ -182,4 +185,3 @@ if user_input:
 
     except Exception as err:
         st.error(f"❌ 분석 실패: {err}")
-
