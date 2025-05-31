@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from io import StringIO
 from itertools import permutations
 
@@ -19,13 +18,13 @@ run = st.button("🔍 매칭 분석 시작하기")
 
 # ===================== 전처리 함수 =====================
 def clean_column_names(df):
-    df.columns = df.columns.str.strip().str.replace("\n", "").str.replace("  +", " ", regex=True)
+    df.columns = df.columns.str.strip().str.replace("\n", " ").str.replace("  +", " ", regex=True)
     rename_dict = {
-        '오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)': '닉네임',
+        '오늘 레개팅에서 쓰실 닉네임은 무엇인가레? (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)': '닉네임',
         '레이디 나이': '나이',
         '선호하는 상대방 레이디 나이': '선호 나이',
         '레이디 키를 적어주she레즈 (숫자만 적어주세여자)': '키',
-        '상대방 레이디 키를  적어주she레즈  (예시 : 154~, ~170)': '선호 키',
+        '상대방 레이디 키를 적어주she레즈 (예시 : 154~, ~170)': '선호 키',
         '레이디의 거주 지역': '지역',
         '희망하는 거리 조건': '거리 조건',
         '성격 [성격(레이디)]': '성격',
@@ -43,9 +42,13 @@ def clean_column_names(df):
         '[벽장(상대방 레이디)]': '선호 벽장',
         '[데이트 선호 주기]': '데이트 주기'
     }
-    df = df.rename(columns={k: v for k, v in rename_dict.items() if k in df.columns})
+    for key in rename_dict:
+        for col in df.columns:
+            if key.strip() in col:
+                df = df.rename(columns={col: rename_dict[key]})
     return df
 
+# ===================== 분석 유틸 =====================
 def parse_range(txt):
     try:
         if pd.isna(txt): return None, None
@@ -76,7 +79,6 @@ def satisfies_all_conditions(a, b):
     musts = str(a.get("꼭 조건들", "")).split(',')
     for m in musts:
         m = m.strip()
-        if not m: continue
         if m == "거리" and '단거리' in str(a['거리 조건']) and a['지역'] != b['지역']:
             return False
         elif m == "성격" and not multi_in(a['선호 성격'], b['성격']):
@@ -85,6 +87,8 @@ def satisfies_all_conditions(a, b):
             return False
         elif m == "키" and not is_in_range(b.get('키', 0), a.get('선호 키', "")):
             return False
+        elif m == "데이트 주기":
+            continue
     return True
 
 # ===================== 점수 계산 =====================
@@ -100,7 +104,7 @@ def match_score(a, b):
 
     add("나이", is_in_range_list(a['나이'], b['선호 나이']) or is_in_range_list(b['나이'], a['선호 나이']))
     add("키", is_in_range(a['키'], b['선호 키']) or is_in_range(b['키'], a['선호 키']))
-    add("거리", ('단거리' not in a['거리 조건'] or a['지역'] == b['지역']) or ('단거리' not in b['거리 조건'] or b['지역'] == a['지역']))
+    add("거리", ("단거리" not in a['거리 조건'] or a['지역'] == b['지역']) or ("단거리" not in b['거리 조건'] or b['지역'] == a['지역']))
     add("성격", multi_in(a['선호 성격'], b['성격']) or multi_in(b['선호 성격'], a['성격']))
     add("머리 길이", multi_in(a['선호 머리 길이'], b['머리 길이']) or multi_in(b['선호 머리 길이'], a['머리 길이']))
     add("흡연", a['흡연'] == b['선호 흡연'] or b['흡연'] == a['선호 흡연'])
@@ -143,15 +147,6 @@ if run and user_input:
         else:
             st.subheader("💘 매칭 결과 전체 보기")
             st.dataframe(res_df, use_container_width=True)
-
-            # ===================== 시각화 =====================
-            st.subheader("📊 매칭 퍼센트 분포")
-            hist, bins = np.histogram(res_df["퍼센트(%)"], bins=10)
-            hist_df = pd.DataFrame({
-                "구간": [f"{int(bins[i])}~{int(bins[i+1])}" for i in range(len(hist))],
-                "매칭 수": hist
-            })
-            st.bar_chart(hist_df.set_index("구간"))
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
