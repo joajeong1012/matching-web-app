@@ -3,98 +3,83 @@ import pandas as pd
 from io import StringIO
 from itertools import permutations
 
-st.set_page_config(page_title="💘 레이디 매칭 분석기", layout="wide")
-st.markdown("""
-# 💘 레이디 이어주기 매칭 분석기
+st.set_page_config(page_title="🌈 레이디 이어주기 궁합 분석기", layout="wide")
 
-TSV 데이터를 붙여넣고 [🔍 매칭 분석 시작하기] 버튼을 눌러주세요!
-""")
+st.title("💘 레이디 이어주기 궁합 분석기 3.0")
+st.markdown("구글폼 TSV 결과를 복사해서 붙여넣어주세요. 자동으로 예쁘게 분석해드려요 😚")
 
-user_input = st.text_area("📥 TSV 데이터 붙여넣기 (헤더 줄바꿈 제거된 상태여야 함)", height=300)
-run = st.button("🔍 매칭 분석 시작하기")
+user_input = st.text_area("📥 TSV 데이터를 복붙해주세요", height=300)
 
-# ===================== 유틸 함수 =====================
-def parse_range(txt):
-    if pd.isna(txt): return None, None
-    txt = str(txt).replace('이하', '~1000').replace('이상', '0~').replace(' ', '')
-    if '~' in txt:
-        s, e = txt.split('~'); return float(s or 0), float(e or 1000)
-    try: v = float(txt); return v, v
-    except: return None, None
-
-def in_range(val, rng):
-    try: val = float(val); s, e = parse_range(rng); return s is not None and s <= val <= e
-    except: return False
-
-def in_range_list(val, rngs): return any(in_range(val, r.strip()) for r in str(rngs).split(',') if r.strip())
-def pref_match(pref, target):
-    prefs = [p.strip() for p in str(pref).split(',') if p.strip() and p.strip() != '상관없음']
-    return any(p in str(target) for p in prefs)
-
-def must_ok(a,b):
-    checks = {
-        "거리": lambda a,b: not ('단거리' in str(a['거리 조건']) and a['거주 지역'] != b['거주 지역']),
-        "성격": lambda a,b: pref_match(a['선호 성격'], b['성격']),
-        "머리 길이": lambda a,b: pref_match(a['선호 머리 길이'], b['머리 길이']),
-        "키": lambda a,b: in_range(b.get('키', 0), a.get('선호 키', '')),
-    }
-    musts = [m.strip() for m in str(a.get("꼭 조건들", '')).split(',') if m.strip()]
-    return all(checks.get(m, lambda *_: True)(a, b) for m in musts)
-
-RULES = [
-    ("나이", lambda a,b: in_range_list(a['레이디 나이'], b['선호 나이']) or in_range_list(b['레이디 나이'], a['선호 나이'])),
-    ("키", lambda a,b: in_range(a['키'], b['선호 키']) or in_range(b['키'], a['선호 키'])),
-    ("거리", lambda a,b: a['거주 지역']==b['거주 지역'] or '단거리' not in str(a['거리 조건'])+str(b['거리 조건'])),
-    ("성격", lambda a,b: pref_match(a['선호 성격'], b['성격']) or pref_match(b['선호 성격'], a['성격'])),
-    ("머리 길이", lambda a,b: pref_match(a['선호 머리 길이'], b['머리 길이']) or pref_match(b['선호 머리 길이'], a['머리 길이'])),
-    ("흡연", lambda a,b: a['흡연']==b['선호 흡연'] or b['흡연']==a['선호 흡연']),
-    ("음주", lambda a,b: a['음주']==b['선호 음주'] or b['음주']==a['선호 음주']),
-    ("타투", lambda a,b: a['타투']==b['선호 타투'] or b['타투']==a['선호 타투']),
-    ("벽장", lambda a,b: a['벽장']==b['선호 벽장'] or b['벽장']==a['선호 벽장']),
-    ("데이트 주기", lambda a,b: True)
-]
-
-def calc_score(a,b):
-    pts=0; matched=[]
-    for label,fn in RULES:
-        if fn(a,b): pts+=1; matched.append(label)
-    return pts, len(RULES), matched
-
-# ===================== 실행 =====================
-if run and user_input:
+if st.button("✨ 궁합 분석 시작하기"):
     try:
-        lines = user_input.splitlines()
-        clean_lines = [line for line in lines if line.count('\t') >= 30]
-        if not clean_lines:
-            st.error("❌ 유효한 TSV 줄이 없습니다. 헤더 포함 전체 복사 붙여넣기를 다시 해주세요.")
-            st.stop()
-        tsv_cleaned = '\n'.join(clean_lines)
-        df = pd.read_csv(StringIO(tsv_cleaned), sep="\t")
-        df.columns = [c.strip().replace("\n", " ").replace("  ", " ") for c in df.columns]
-        if '닉네임' not in df.columns:
-            st.error("❌ '닉네임' 컬럼을 찾을 수 없어요. 줄바꿈 제거된 헤더를 사용하세요.")
-            st.stop()
-        df = df[df['닉네임'].str.strip() != ""].reset_index(drop=True)
+        # 🧹 줄바꿈, 공백 제거
+        cleaned_input = user_input.replace("\r", "").replace('\n\n', '\n').replace('\n', ' ').replace('\t ', '\t')
+        df = pd.read_csv(StringIO(cleaned_input), sep='\t')
 
-        st.success("✅ 데이터 정제 완료!")
-        with st.expander("정제된 데이터"):
-            st.dataframe(df)
+        # 컬럼명 정리
+        df.columns = df.columns.str.replace(r'\s+', ' ', regex=True).str.strip()
 
-        rows=[]
-        for i,j in permutations(df.index,2):
-            A,B=df.loc[i],df.loc[j]
-            if not (must_ok(A,B) and must_ok(B,A)): continue
-            s,total,why=calc_score(A,B)
-            rows.append({'A':A['닉네임'],'B':B['닉네임'],
-                         '점수':f'{s}/{total}','퍼센트(%)':round(s/total*100,1),
-                         '일치 조건':', '.join(why)})
-        res=pd.DataFrame(rows)
-        if res.empty:
-            st.warning("😢 조건을 만족하는 매칭이 없습니다.")
-        else:
-            res = res.sort_values("퍼센트(%)", ascending=False)
-            st.subheader("💘 매칭 결과")
-            st.dataframe(res, use_container_width=True)
+        # 닉네임 컬럼 찾기
+        nickname_col = [col for col in df.columns if "닉네임" in col][0]
+        df.rename(columns={nickname_col: "닉네임"}, inplace=True)
+
+        # 꼭 맞아야 조건들
+        def extract_must_conditions(val):
+            if pd.isna(val): return []
+            return [v.strip() for v in str(val).split(',') if v.strip()]
+        
+        results = []
+        pairs = list(permutations(df.index, 2))
+        
+        for i, j in pairs:
+            a, b = df.loc[i], df.loc[j]
+            score = 0
+            total = 0
+            reasons = []
+            must_a = extract_must_conditions(a.get("꼭 맞아야 하는 조건들은 무엇인가레?", ""))
+            must_b = extract_must_conditions(b.get("꼭 맞아야 하는 조건들은 무엇인가레?", ""))
+
+            for col in df.columns:
+                col = col.strip()
+                if col in ["닉네임", "타임스탬프"]: continue
+
+                val_a = str(a.get(col, "")).strip()
+                val_b = str(b.get(col, "")).strip()
+                if not val_a or not val_b: continue
+
+                # 긴/짧 항목 중복 허용 고려
+                match = (
+                    any(v in val_b for v in val_a.split(',')) or 
+                    any(v in val_a for v in val_b.split(','))
+                )
+
+                is_must = col in must_a or col in must_b
+
+                if match:
+                    score += 1
+                    reasons.append(f"✅ {col}")
+                elif is_must:
+                    score = 0
+                    reasons = [f"❌ {col} (필수 조건 불일치)"]
+                    break
+                total += 1
+
+            percent = round(score / total * 100 if total else 0, 1)
+            results.append({
+                "A": a["닉네임"],
+                "B": b["닉네임"],
+                "궁합 점수": f"{score} / {total}",
+                "퍼센트(%)": percent,
+                "매칭 사유 요약": ", ".join(reasons)
+            })
+
+        result_df = pd.DataFrame(results).sort_values("퍼센트(%)", ascending=False)
+        st.success(f"총 {len(result_df)}쌍 매칭 완료 🎉")
+        st.dataframe(result_df, use_container_width=True)
+
+        # CSV 다운로드
+        csv = result_df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📥 결과 CSV 다운로드", data=csv, file_name="lady_matching_results.csv", mime='text/csv')
 
     except Exception as e:
-        st.error(f"❌ 분석 실패: {e}")
+        st.error(f"❌ 분석 실패: {str(e)}")
