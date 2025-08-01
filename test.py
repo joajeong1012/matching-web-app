@@ -6,7 +6,7 @@ from itertools import combinations
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (거리 항상 표시 + 필수 시만 점수 반영)")
+st.title("🌈 레이디 이어주기 매칭 분석기 (정렬 우선순위 강화)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -147,16 +147,14 @@ if run and raw_text:
 
             match_rate = round((must_matched / must_total * 100) if must_total else 0.0, 1)
 
-            # 나이 일치 (항상)
+            # 나이 일치
             age_match = "✅" if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]) else "❌"
             if age_match == "❌":
                 reasons.append("나이 조건 불일치")
 
-            # 거리 일치 (항상 표시)
+            # 거리 일치
             real_dist_match = distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF])
             dist_match = "✅" if real_dist_match else "❌"
-
-            # 거리 점수 및 사유는 필수 조건일 때만 반영
             if "거리" in musts and not real_dist_match:
                 reasons.append("거리 조건 불일치 (단거리 요구 & 지역 다름)")
 
@@ -167,6 +165,8 @@ if run and raw_text:
                 "거리 일치": dist_match,
                 "나이 일치 점수": 1 if age_match == "✅" else 0,
                 "거리 일치 점수": 1 if ("거리" in musts and real_dist_match) else 0,
+                "나이 동일 여부": 1 if A[AGE_SELF] == B[AGE_SELF] else 0,
+                "지역 동일 여부": 1 if A[DIST_SELF] == B[DIST_SELF] else 0,
                 "불일치 이유": "\n".join(reasons) if reasons else "",
                 "필수 조건 개수": must_total,
                 "일치한 필수 조건 수": must_matched
@@ -174,15 +174,23 @@ if run and raw_text:
 
         out = pd.DataFrame(results)
         out = out.sort_values(
-            by=["필수 조건 일치율 (%)", "나이 일치 점수", "거리 일치 점수"],
-            ascending=[False, False, False]
+            by=[
+                "필수 조건 일치율 (%)",
+                "나이 일치 점수",
+                "거리 일치 점수",
+                "나이 동일 여부",
+                "지역 동일 여부"
+            ],
+            ascending=[False, False, False, False, False]
         ).reset_index(drop=True)
 
         if out.empty:
             st.warning("😢 매칭 결과가 없습니다.")
         else:
-            st.success(f"총 {len(out)}쌍 비교 완료 (거리 일치 항상 표시됨)")
-            st.dataframe(out.drop(columns=["나이 일치 점수", "거리 일치 점수"]), use_container_width=True)
+            st.success(f"총 {len(out)}쌍 비교 완료 (정렬 우선순위 강화)")
+            st.dataframe(out.drop(columns=[
+                "나이 일치 점수", "거리 일치 점수", "나이 동일 여부", "지역 동일 여부"
+            ]), use_container_width=True)
             st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_결과.csv", "text/csv")
 
     except Exception as e:
