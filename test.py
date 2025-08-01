@@ -34,11 +34,14 @@ def numeric_match(value, rng):
     except:
         return False
 
+def clean_column(col: str) -> str:
+    return col.replace("\n", " ").replace("\r", " ").replace('"', '').strip()
+
 # ----------------- matching logic -----------------
 if run and raw_text:
     try:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
-        df.columns = df.columns.str.strip()
+        df.columns = [clean_column(c) for c in df.columns]
 
         NICK = "닉네임"
         MUST = "꼭 맞아야 하는 조건들은 무엇인가레?"
@@ -50,7 +53,7 @@ if run and raw_text:
         HEIGHT_PREF = "상대방 레이디 키"
 
         if NICK not in df.columns or MUST not in df.columns:
-            st.error("❌ 필수 컬럼이 없습니다.")
+            st.error("❌ 필수 컬럼이 없습니다. (닉네임 / 꼭 맞아야 하는 조건들은 무엇인가레?)")
             st.stop()
 
         condition_fields = {
