@@ -15,6 +15,7 @@ st.markdown("""
         }
         .stTextArea textarea {
             background-color: #fdf6fa;
+            color: #333333;  /* ✅ 글자색 명시 */
             font-family: 'Arial';
             font-size: 14px;
         }
