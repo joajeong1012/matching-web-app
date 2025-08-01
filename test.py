@@ -15,17 +15,16 @@ st.markdown("""
         }
         .stTextArea textarea {
             background-color: #fdf6fa;
-            color: #333333;  /* ✅ 글자색 명시 */
+            color: #333333;
             font-family: 'Arial';
             font-size: 14px;
         }
         .stDataFrame {
             font-size: 13px;
         }
-        .big-button .stButton>button {
+        .stButton>button {
             font-size: 16px;
             height: 3em;
-            width: 100%;
             background-color: #ffdef0;
             color: black;
             border-radius: 10px;
@@ -40,7 +39,7 @@ st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼�
 # ----------------- 입력 -----------------
 st.markdown("#### 📥 TSV 데이터를 아래에 붙여넣어 주세요:")
 raw_text = st.text_area("TSV 데이터", height=300, label_visibility="collapsed")
-run = st.button("🔍 분석 시작", help="붙여넣기 후 눌러주세요")
+run = st.button("🔍 분석 시작")
 
 st.markdown("---")
 
@@ -92,11 +91,13 @@ def find_column(df, keyword: str):
     return next((c for c in df.columns if keyword in c), None)
 
 def distance_match(a_self, a_pref, b_self, b_pref):
+    # ✅ 단거리 포함 시에만 같은 지역 요구, 아니면 장거리 취급으로 OK
     a_tokens = tokens(a_pref)
     b_tokens = tokens(b_pref)
-    if "단거리" in a_tokens or "단거리" in b_tokens:
+    wants_short = "단거리" in a_tokens or "단거리" in b_tokens
+    if wants_short:
         return a_self.strip() == b_self.strip()
-    return True
+    return True  # 장거리 허용
 
 # ----------------- main -----------------
 if run and raw_text:
@@ -104,7 +105,6 @@ if run and raw_text:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
         df.columns = [clean_column(c) for c in df.columns]
 
-        # 자동 컬럼 탐색
         NICK = find_column(df, "닉네임")
         MUST = find_column(df, "꼭 맞아야")
         DIST_SELF = find_column(df, "거주 지역")
