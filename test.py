@@ -6,7 +6,7 @@ from itertools import permutations
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (우선순위 정렬 + 나이 우선 적용)")
+st.title("🌈 레이디 이어주기 매칭 분석기 (양방향 필수 조건 + 나이 우선 정렬)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -20,7 +20,6 @@ def tokens(val):
     return [t.strip() for t in SEP.split(str(val)) if t.strip()]
 
 def ranges_overlap(val1, val2):
-    """두 범위(또는 수치+범위 조합)가 겹치는지 확인"""
     def parse_ranges(val):
         if not val or pd.isna(val):
             return []
@@ -105,7 +104,8 @@ if run and raw_text:
             if not a_nick or not b_nick:
                 continue
 
-            musts = list(set(tokens(A[MUST])))
+            # ✅ 양방향 필수 조건 합치기
+            musts = list(set(tokens(A[MUST])) | set(tokens(B[MUST])))
             must_total = len(musts)
             must_matched = 0
             reasons = []
@@ -141,10 +141,8 @@ if run and raw_text:
             match_rate = round((must_matched / must_total * 100) if must_total else 0.0, 1)
 
             # 나이 비교
-            age_match = "❌"
-            if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]):
-                age_match = "✅"
-            else:
+            age_match = "✅" if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]) else "❌"
+            if age_match == "❌":
                 reasons.append("나이 조건 불일치")
 
             # 거리 비교
