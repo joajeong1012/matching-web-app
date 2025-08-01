@@ -6,7 +6,7 @@ from itertools import permutations
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (범위 겹침 완벽 대응 버전)")
+st.title("🌈 레이디 이어주기 매칭 분석기 (우선순위 정렬 + 나이 우선 적용)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -162,6 +162,8 @@ if run and raw_text:
                 "필수 조건 일치율 (%)": match_rate,
                 "나이 일치": age_match,
                 "거리 일치": dist_match,
+                "나이 일치 점수": 1 if age_match == "✅" else 0,
+                "거리 일치 점수": 1 if dist_match == "✅" else (0 if dist_match == "❌" else -1),
                 "불일치 이유": "\n".join(reasons) if reasons else "",
                 "필수 조건 개수": must_total,
                 "일치한 필수 조건 수": must_matched
@@ -169,7 +171,7 @@ if run and raw_text:
 
         out = pd.DataFrame(results)
         out = out.sort_values(
-            by=["필수 조건 일치율 (%)", "나이 일치", "거리 일치"],
+            by=["필수 조건 일치율 (%)", "나이 일치 점수", "거리 일치 점수"],
             ascending=[False, False, False]
         ).reset_index(drop=True)
 
@@ -177,7 +179,7 @@ if run and raw_text:
             st.warning("😢 매칭 결과가 없습니다.")
         else:
             st.success(f"총 {len(out)}쌍 비교 완료 (정렬: 일치율 → 나이 → 거리)")
-            st.dataframe(out, use_container_width=True)
+            st.dataframe(out.drop(columns=["나이 일치 점수", "거리 일치 점수"]), use_container_width=True)
             st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_결과.csv", "text/csv")
 
     except Exception as e:
