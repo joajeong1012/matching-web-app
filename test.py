@@ -21,20 +21,16 @@ def tokens(val):
 
 def numeric_match(value, range_expr):
     try:
-        v = float(re.sub(r"[^\d.]", "", str(value)))  # 숫자만 추출
+        v = float(re.sub(r"[^\d.]", "", str(value)))
     except:
         return False
-
     if not range_expr or pd.isna(range_expr):
         return False
-
     parts = [r.strip() for r in str(range_expr).split(",") if r.strip()]
-
     for rng in parts:
         rng = rng.replace("세 이상", "~100").replace("세이상", "~100")
         rng = rng.replace("세 이하", "0~").replace("세이하", "0~")
         rng = re.sub(r"[^\d~]", "", rng)
-
         if "~" in rng:
             try:
                 s, e = rng.split("~")
@@ -50,7 +46,6 @@ def numeric_match(value, range_expr):
                     return True
             except:
                 continue
-
     return False
 
 def clean_column(col: str) -> str:
@@ -62,29 +57,37 @@ if run and raw_text:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
         df.columns = [clean_column(c) for c in df.columns]
 
-        # ✅ 컬럼명 수동 지정
-        NICK = "오늘 레개팅에서 쓰실 닉네임은 무엇인가레?  (오픈카톡 닉네임과 동(성)일 하게이 맞춰주she레즈)"
-        MUST = "꼭 맞아야 하는 조건들은 무엇인가레? (레개팅에서 가장 우선적으로 반영되는 기준입레다. 반드she 맞아야 하는 중요한 조건만 신중히 선택해 주she레즈.)"
-        DIST_SELF = "레이디의 거주 지역"
-        DIST_PREF = "희망하는 거리 조건 (범위 안내 - 단거리 : 동일 지역 안, 장거리 : 동일 지역 외 포함)"
-        AGE_SELF = "레이디 나이"
-        AGE_PREF = "선호하는 상대방 레이디 나이"
-        HEIGHT_SELF = "레이디 키를 적어주she레즈 (숫자만 적어주세여자)"
-        HEIGHT_PREF = "상대방 레이디 키를  적어주she레즈  (예시 : 154~, ~170)"
+        # ✅ 자동 컬럼 탐지 함수
+        def find_column(keyword: str):
+            return next((c for c in df.columns if keyword in c), None)
 
-        # ✅ 조건 매핑
+        # ✅ 자동 탐색된 컬럼들
+        NICK = find_column("닉네임")
+        MUST = find_column("꼭 맞아야")
+        DIST_SELF = find_column("거주 지역")
+        DIST_PREF = find_column("거리 조건")
+        AGE_SELF = find_column("레이디 나이")
+        AGE_PREF = find_column("선호하는 상대방 레이디 나이")
+        HEIGHT_SELF = find_column("레이디 키")
+        HEIGHT_PREF = find_column("상대방 레이디 키")
+
+        if not all([NICK, MUST, DIST_SELF, DIST_PREF, AGE_SELF, AGE_PREF]):
+            st.error("❌ 필수 컬럼이 누락되었습니다. 컬럼명을 확인해주세요.")
+            st.write("인식된 컬럼 목록:", df.columns.tolist())
+            st.stop()
+
         condition_fields = {
             "나이": (AGE_SELF, AGE_PREF),
             "키": (HEIGHT_SELF, HEIGHT_PREF),
             "거리": (DIST_SELF, DIST_PREF),
-            "흡연": ("세부 조건  Yes or No [흡연(레이디)]", "세부 조건  Yes or No [흡연(상대방 레이디)]"),
-            "음주": ("세부 조건  Yes or No [음주(레이디)]", "세부 조건  Yes or No [음주(상대방 레이디) ]"),
-            "타투": ("세부 조건  Yes or No [타투(레이디)]", "세부 조건  Yes or No [타투(상대방 레이디)]"),
-            "벽장": ("세부 조건  Yes or No [벽장(레이디)]", "세부 조건  Yes or No [벽장(상대방 레이디)]"),
-            "성격": ("성격 [성격(레이디)]", "성격 [성격(상대방 레이디)]"),
-            "연락 텀": ("긴 or 짧 [연락 텀(레이디)]", "긴 or 짧 [연락 텀(상대방 레이디)]"),
-            "머리 길이": ("긴 or 짧 [머리 길이(레이디)]", "긴 or 짧 [머리 길이(상대방 레이디)]"),
-            "데이트 주기": ("긴 or 짧 [데이트 선호 주기]", "긴 or 짧 [데이트 선호 주기]"),
+            "흡연": (find_column("흡연(레이디)"), find_column("흡연(상대방 레이디)")),
+            "음주": (find_column("음주(레이디)"), find_column("음주(상대방 레이디)")),
+            "타투": (find_column("타투(레이디)"), find_column("타투(상대방 레이디)")),
+            "벽장": (find_column("벽장(레이디)"), find_column("벽장(상대방 레이디)")),
+            "성격": (find_column("성격(레이디)"), find_column("성격(상대방 레이디)")),
+            "연락 텀": (find_column("연락 텀(레이디)"), find_column("연락 텀(상대방 레이디)")),
+            "머리 길이": (find_column("머리 길이(레이디)"), find_column("머리 길이(상대방 레이디)")),
+            "데이트 주기": (find_column("데이트 선호 주기"), find_column("데이트 선호 주기")),
         }
 
         df = df[df[NICK].notna()].drop_duplicates(subset=[NICK]).reset_index(drop=True)
@@ -102,7 +105,7 @@ if run and raw_text:
             reasons = []
 
             for key in musts:
-                if key not in condition_fields:
+                if key not in condition_fields or not all(condition_fields[key]):
                     continue
                 a_field, b_field = condition_fields[key]
                 a_self = A.get(a_field, "")
