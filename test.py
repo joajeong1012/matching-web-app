@@ -6,7 +6,7 @@ from itertools import combinations
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (거리 조건 정밀판단 포함)")
+st.title("🌈 레이디 이어주기 매칭 분석기 (거리 항상 표시 + 필수 시만 점수 반영)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -152,13 +152,13 @@ if run and raw_text:
             if age_match == "❌":
                 reasons.append("나이 조건 불일치")
 
-            # 거리 일치 (필수 조건일 경우만 정확 비교)
-            if "거리" in musts:
-                dist_match = "✅" if distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF]) else "❌"
-                if dist_match == "❌":
-                    reasons.append("거리 조건 불일치 (단거리 요구 & 지역 다름)")
-            else:
-                dist_match = "무관"
+            # 거리 일치 (항상 표시)
+            real_dist_match = distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF])
+            dist_match = "✅" if real_dist_match else "❌"
+
+            # 거리 점수 및 사유는 필수 조건일 때만 반영
+            if "거리" in musts and not real_dist_match:
+                reasons.append("거리 조건 불일치 (단거리 요구 & 지역 다름)")
 
             results.append({
                 "A ↔ B": f"{a_nick} ↔ {b_nick}",
@@ -166,7 +166,7 @@ if run and raw_text:
                 "나이 일치": age_match,
                 "거리 일치": dist_match,
                 "나이 일치 점수": 1 if age_match == "✅" else 0,
-                "거리 일치 점수": 1 if dist_match == "✅" else (0 if dist_match == "❌" else -1),
+                "거리 일치 점수": 1 if ("거리" in musts and real_dist_match) else 0,
                 "불일치 이유": "\n".join(reasons) if reasons else "",
                 "필수 조건 개수": must_total,
                 "일치한 필수 조건 수": must_matched
@@ -181,7 +181,7 @@ if run and raw_text:
         if out.empty:
             st.warning("😢 매칭 결과가 없습니다.")
         else:
-            st.success(f"총 {len(out)}쌍 비교 완료 (거리 필수 조건 반영)")
+            st.success(f"총 {len(out)}쌍 비교 완료 (거리 일치 항상 표시됨)")
             st.dataframe(out.drop(columns=["나이 일치 점수", "거리 일치 점수"]), use_container_width=True)
             st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_결과.csv", "text/csv")
 
