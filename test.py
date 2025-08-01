@@ -5,45 +5,15 @@ from io import StringIO
 from itertools import combinations
 
 # ----------------- UI 설정 -----------------
-st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
+st.set_page_config(page_title="💘 조건 전체 비교 매칭기", layout="wide")
+st.title("💘 전체 조건 기반 레이디 매칭기")
+st.caption("TSV 데이터를 붙여넣고 ➡️ [🔍 분석 시작] 버튼을 눌러주세요")
 
-st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
-        }
-        .stTextArea textarea {
-            background-color: #fdf6fa;
-            color: #333333;
-            font-family: 'Arial';
-            font-size: 14px;
-        }
-        .stDataFrame {
-            font-size: 13px;
-        }
-        .stButton>button {
-            font-size: 16px;
-            height: 3em;
-            background-color: #ffdef0;
-            color: black;
-            border-radius: 10px;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("💘 조건 우선 정렬 매칭기")
-st.subheader("🌈 레이디 이어주기 매칭 분석기")
-st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
-
-# ----------------- 입력 -----------------
-st.markdown("#### 📥 TSV 데이터를 아래에 붙여넣어 주세요:")
-raw_text = st.text_area("TSV 데이터", height=300, label_visibility="collapsed")
+raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
 run = st.button("🔍 분석 시작")
-
 st.markdown("---")
 
-# ----------------- helpers -----------------
+# ----------------- Helper 함수 -----------------
 SEP = re.compile(r"[,/]|\s+")
 
 def tokens(val):
@@ -101,25 +71,19 @@ def distance_match(a_self, a_pref, b_self, b_pref):
         return a_self.strip() == b_self.strip()
     return True
 
-# ----------------- main -----------------
+# ----------------- 분석 시작 -----------------
 if run and raw_text:
     try:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
         df.columns = [clean_column(c) for c in df.columns]
 
         NICK = find_column(df, "닉네임")
-        MUST = find_column(df, "꼭 맞아야")
         DIST_SELF = find_column(df, "거주 지역")
         DIST_PREF = find_column(df, "거리 조건")
         AGE_SELF = find_column(df, "레이디 나이")
         AGE_PREF = find_column(df, "선호하는 상대방 레이디 나이")
         HEIGHT_SELF = find_column(df, "레이디 키")
         HEIGHT_PREF = find_column(df, "상대방 레이디 키")
-
-        if not all([NICK, MUST, DIST_SELF, DIST_PREF, AGE_SELF, AGE_PREF]):
-            st.error("❌ 필수 컬럼이 누락되었습니다.")
-            st.write("컬럼 목록:", df.columns.tolist())
-            st.stop()
 
         condition_fields = {
             "나이": (AGE_SELF, AGE_PREF),
@@ -137,100 +101,84 @@ if run and raw_text:
 
         df = df[df[NICK].notna()].drop_duplicates(subset=[NICK]).reset_index(drop=True)
 
+        all_conditions = [k for k in condition_fields if all(condition_fields[k])]
+
         results = []
         for i, j in combinations(df.index, 2):
             A, B = df.loc[i], df.loc[j]
             a_nick, b_nick = A[NICK].strip(), B[NICK].strip()
-            if not a_nick or not b_nick:
-                continue
 
-            musts_all = set(tokens(A[MUST])) | set(tokens(B[MUST]))
-            musts = [m for m in musts_all if m not in ["나이", "거리"]]
-            must_total = len(musts)
-            must_matched = 0
-            reasons = []
+            matched = 0
+            issues = []
 
-            for key in musts:
-                if key not in condition_fields or not all(condition_fields[key]):
-                    continue
+            for key in all_conditions:
                 a_field, b_field = condition_fields[key]
-                a_self = A.get(a_field, "")
-                a_pref = A.get(b_field, "")
-                b_self = B.get(a_field, "")
-                b_pref = B.get(b_field, "")
+                a_self = str(A.get(a_field, ""))
+                a_pref = str(A.get(b_field, ""))
+                b_self = str(B.get(a_field, ""))
+                b_pref = str(B.get(b_field, ""))
 
+                # 비교 방식에 따라 구분
                 if key in ["나이", "키"]:
-                    ok1 = ranges_overlap(a_self, b_pref)
-                    ok2 = ranges_overlap(b_self, a_pref)
+                    ok1 = ranges_overlap(b_self, a_pref)
+                    ok2 = ranges_overlap(a_self, b_pref)
                     if ok1 and ok2:
-                        must_matched += 1
+                        matched += 1
                     else:
-                        reasons.append(f"{key} 불일치")
-                elif a_field == b_field:
-                    if str(A[a_field]).strip() == str(B[b_field]).strip():
-                        must_matched += 1
+                        if not ok1:
+                            issues.append(f"A의 {key} 조건 불일치")
+                        if not ok2:
+                            issues.append(f"B의 {key} 조건 불일치")
+                elif key == "거리":
+                    ok = distance_match(a_self, a_pref, b_self, b_pref)
+                    if ok:
+                        matched += 1
                     else:
-                        reasons.append(f"{key} 불일치")
+                        issues.append("거리 조건 불일치")
                 else:
-                    if set(tokens(A[a_field])).intersection(tokens(B[b_field])) and \
-                       set(tokens(B[a_field])).intersection(tokens(A[b_field])):
-                        must_matched += 1
+                    tok_a = set(tokens(a_self))
+                    tok_ap = set(tokens(a_pref))
+                    tok_b = set(tokens(b_self))
+                    tok_bp = set(tokens(b_pref))
+                    a_ok = bool(tok_ap & tok_b)
+                    b_ok = bool(tok_bp & tok_a)
+                    if a_ok and b_ok:
+                        matched += 1
                     else:
-                        reasons.append(f"{key} 불일치")
+                        if not a_ok:
+                            issues.append(f"A의 {key} 조건 불일치")
+                        if not b_ok:
+                            issues.append(f"B의 {key} 조건 불일치")
 
-            match_rate = round((must_matched / must_total * 100) if must_total else 0.0, 1)
-
-            age_match = "✅" if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]) else "❌"
-            if age_match == "❌":
-                reasons.append("나이 조건 불일치")
-
-            real_dist_match = distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF])
-            dist_match = "✅" if real_dist_match else "❌"
-            if not real_dist_match:
-                reasons.append("거리 조건 불일치")
+            total = len(all_conditions)
+            match_rate = round(matched / total * 100, 1)
 
             results.append({
                 "A ↔ B": f"{a_nick} ↔ {b_nick}",
-                "필수 조건 일치율 (%)": match_rate,
-                "나이 일치": age_match,
-                "거리 일치": dist_match,
-                "나이 일치 점수": 1 if age_match == "✅" else 0,
-                "거리 일치 점수": 1 if real_dist_match else 0,
+                "전체 조건 일치율 (%)": match_rate,
+                "나이 일치": "✅" if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]) else "❌",
+                "거리 일치": "✅" if distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF]) else "❌",
+                "불일치 이유": ", ".join(issues) if issues else "",
+                "일치한 조건 수": matched,
+                "총 조건 수": total,
                 "나이 동일 여부": 1 if A[AGE_SELF] == B[AGE_SELF] else 0,
                 "지역 동일 여부": 1 if A[DIST_SELF] == B[DIST_SELF] else 0,
-                "불일치 이유": "\n".join(reasons) if reasons else "",
-                "필수 조건 개수": must_total,
-                "일치한 필수 조건 수": must_matched
             })
 
         out = pd.DataFrame(results)
         out = out.sort_values(
-            by=[
-                "필수 조건 일치율 (%)",
-                "나이 일치 점수",
-                "거리 일치 점수",
-                "나이 동일 여부",
-                "지역 동일 여부"
-            ],
+            by=["전체 조건 일치율 (%)", "나이 일치", "거리 일치", "나이 동일 여부", "지역 동일 여부"],
             ascending=[False, False, False, False, False]
         ).reset_index(drop=True)
 
         if out.empty:
             st.warning("😢 매칭 결과가 없습니다.")
         else:
-            st.success(f"✅ 총 {len(out)}쌍 비교 완료! 조건 정렬 결과가 아래에 표시됩니다.")
-            st.dataframe(out.drop(columns=[
-                "나이 일치 점수", "거리 일치 점수", "나이 동일 여부", "지역 동일 여부"
-            ]), use_container_width=True)
-
-            st.download_button(
-                label="📥 매칭 결과 CSV 다운로드",
-                data=out.to_csv(index=False).encode("utf-8-sig"),
-                file_name="매칭_결과.csv",
-                mime="text/csv"
-            )
+            st.success(f"총 {len(out)}쌍 비교 완료!")
+            st.dataframe(out.drop(columns=["나이 동일 여부", "지역 동일 여부"]), use_container_width=True)
+            st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "전체조건_매칭결과.csv", "text/csv")
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
 else:
-    st.info("👆 TSV 붙여넣고 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
+    st.info("TSV 붙여넣고 ➡️ 분석 시작!")
