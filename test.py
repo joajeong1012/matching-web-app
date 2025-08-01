@@ -7,7 +7,7 @@ import base64
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (조건 우선 정렬)")
+st.title("🌈 레이디 이어주기 매칭 분석기 (우선순위 정렬 + 사유 출력)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -22,10 +22,10 @@ def tokens(val):
 
 def numeric_match(value, rng):
     try:
-        v = float(re.sub(r"[^\d.]", "", str(value)))  # 숫자만 추출
+        v = float(re.sub(r"[^\d.]", "", str(value)))  # 숫자 추출
     except:
         return False
-    rng = str(rng).replace("이상", "0~").replace("이하", "~1000").replace(" ", "").strip()
+    rng = str(rng).replace("이상", "0~").replace("이하", "~1000").replace(" ", "")
     if "~" in rng:
         try:
             s, e = rng.split("~")
@@ -40,7 +40,7 @@ def numeric_match(value, rng):
         return False
 
 def clean_column(col: str) -> str:
-    return col.replace("\n", " ").replace("\r", " ").replace('"', '').strip()
+    return re.sub(r"\s+", " ", col).strip().replace("\n", "")
 
 # ----------------- main -----------------
 if run and raw_text:
@@ -48,9 +48,10 @@ if run and raw_text:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
         df.columns = [clean_column(c) for c in df.columns]
 
+        # 자동 컬럼명 찾기
         NICK = next((c for c in df.columns if "닉네임" in c), None)
         MUST = next((c for c in df.columns if "꼭 맞아야" in c), None)
-        DIST_SELF = "레이디의 거주 지역"
+        DIST_SELF = next((c for c in df.columns if "거주 지역" in c), None)
         DIST_PREF = next((c for c in df.columns if "희망하는 거리 조건" in c), None)
         AGE_SELF = next((c for c in df.columns if "레이디 나이" in c), None)
         AGE_PREF = next((c for c in df.columns if "선호하는 상대방 레이디 나이" in c), None)
@@ -58,17 +59,18 @@ if run and raw_text:
         HEIGHT_PREF = next((c for c in df.columns if "상대방 레이디 키" in c), None)
 
         if not all([NICK, MUST, DIST_SELF, DIST_PREF, AGE_SELF, AGE_PREF]):
-            st.error("❌ 필수 컬럼 중 일부가 누락되었습니다.")
+            st.error("❌ 필수 컬럼이 누락되었습니다.")
             st.stop()
 
+        # 정규화된 조건명 매핑
         condition_fields = {
             "나이": (AGE_SELF, AGE_PREF),
             "키": (HEIGHT_SELF, HEIGHT_PREF),
             "거리": (DIST_SELF, DIST_PREF),
-            "흡연": ("세부 조건  Yes or No [흡연(레이디)]", "세부 조건  Yes or No [흡연(상대방 레이디)]"),
-            "음주": ("세부 조건  Yes or No [음주(레이디)]", "세부 조건  Yes or No [음주(상대방 레이디) ]"),
-            "타투": ("세부 조건  Yes or No [타투(레이디)]", "세부 조건  Yes or No [타투(상대방 레이디)]"),
-            "벽장": ("세부 조건  Yes or No [벽장(레이디)]", "세부 조건  Yes or No [벽장(상대방 레이디)]"),
+            "흡연": ("세부 조건 Yes or No [흡연(레이디)]", "세부 조건 Yes or No [흡연(상대방 레이디)]"),
+            "음주": ("세부 조건 Yes or No [음주(레이디)]", "세부 조건 Yes or No [음주(상대방 레이디)]"),
+            "타투": ("세부 조건 Yes or No [타투(레이디)]", "세부 조건 Yes or No [타투(상대방 레이디)]"),
+            "벽장": ("세부 조건 Yes or No [벽장(레이디)]", "세부 조건 Yes or No [벽장(상대방 레이디)]"),
             "성격": ("성격 [성격(레이디)]", "성격 [성격(상대방 레이디)]"),
             "연락 텀": ("긴 or 짧 [연락 텀(레이디)]", "긴 or 짧 [연락 텀(상대방 레이디)]"),
             "머리 길이": ("긴 or 짧 [머리 길이(레이디)]", "긴 or 짧 [머리 길이(상대방 레이디)]"),
@@ -157,7 +159,7 @@ if run and raw_text:
         else:
             st.success(f"총 {len(out)}쌍 비교 완료 (정렬: 일치율 → 나이 → 거리)")
             st.dataframe(out, use_container_width=True)
-            st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_우선순위결과.csv", "text/csv")
+            st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_결과.csv", "text/csv")
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
