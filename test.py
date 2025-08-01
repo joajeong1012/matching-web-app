@@ -91,11 +91,13 @@ def find_column(df, keyword: str):
     return next((c for c in df.columns if keyword in c), None)
 
 def distance_match(a_self, a_pref, b_self, b_pref):
-    # ✅ 단거리 포함 시에만 같은 지역 요구, 아니면 장거리 취급으로 OK
-    a_tokens = tokens(a_pref)
-    b_tokens = tokens(b_pref)
-    wants_short = "단거리" in a_tokens or "단거리" in b_tokens
-    if wants_short:
+    a_tokens = set(tokens(a_pref))
+    b_tokens = set(tokens(b_pref))
+
+    a_short_only = "단거리" in a_tokens and "장거리" not in a_tokens
+    b_short_only = "단거리" in b_tokens and "장거리" not in b_tokens
+
+    if a_short_only or b_short_only:
         return a_self.strip() == b_self.strip()
     return True  # 장거리 허용
 
@@ -185,8 +187,8 @@ if run and raw_text:
             # 거리 일치
             real_dist_match = distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF])
             dist_match = "✅" if real_dist_match else "❌"
-            if "거리" in musts and not real_dist_match:
-                reasons.append("거리 조건 불일치 (단거리 요구 & 지역 다름)")
+            if not real_dist_match:
+                reasons.append("거리 조건 불일치")
 
             results.append({
                 "A ↔ B": f"{a_nick} ↔ {b_nick}",
