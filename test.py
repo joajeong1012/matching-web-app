@@ -3,6 +3,7 @@ import re
 import streamlit as st
 from io import StringIO
 from itertools import permutations
+import base64
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
@@ -19,41 +20,24 @@ SEP = re.compile(r"[,/]|\s+")
 def tokens(val):
     return [t.strip() for t in SEP.split(str(val)) if t.strip()]
 
-def numeric_match(value, range_expr):
-    """숫자형 조건 비교 함수 (범위, 이상, 이하, 복수 조건 포함)"""
+def numeric_match(value, rng):
     try:
-        v = float(re.sub(r"[^\d.]", "", str(value)))  # 숫자만 추출
+        v = float(re.sub(r"[^\d.]", "", str(value)))  # 숫자 추출
     except:
         return False
-
-    if not range_expr or pd.isna(range_expr):
+    rng = str(rng).replace("이상", "0~").replace("이하", "~1000").replace(" ", "")
+    if "~" in rng:
+        try:
+            s, e = rng.split("~")
+            s = float(s or 0)
+            e = float(e or 1000)
+            return s <= v <= e
+        except:
+            return False
+    try:
+        return v == float(rng)
+    except:
         return False
-
-    # 복수 조건 처리
-    parts = [r.strip() for r in str(range_expr).split(",") if r.strip()]
-
-    for rng in parts:
-        rng = rng.replace("세 이상", "~100").replace("세이상", "~100")
-        rng = rng.replace("세 이하", "0~").replace("세이하", "0~")
-        rng = re.sub(r"[^\d~]", "", rng)
-
-        if "~" in rng:
-            try:
-                s, e = rng.split("~")
-                s = float(s or 0)
-                e = float(e or 100)
-                if s <= v <= e:
-                    return True
-            except:
-                continue
-        else:
-            try:
-                if v == float(rng):
-                    return True
-            except:
-                continue
-
-    return False
 
 def clean_column(col: str) -> str:
     return re.sub(r"\s+", " ", col).strip().replace("\n", "")
@@ -87,7 +71,7 @@ if run and raw_text:
             "음주": ("[음주(레이디)]", "[음주(상대방 레이디) ]"),
             "타투": ("[타투(레이디)]", "[타투(상대방 레이디)]"),
             "벽장": ("[벽장(레이디)]", "[벽장(상대방 레이디)]"),
-           "성격": ("성격 [성격(레이디)]", "성격 [성격(상대방 레이디)]"),
+            "성격": ("[성격(레이디)]", "[성격(상대방 레이디)]"),
             "연락 텀": ("[연락 텀(레이디)]", "[연락 텀(상대방 레이디)]"),
             "머리 길이": ("[머리 길이(레이디)]", "[머리 길이(상대방 레이디)]"),
             "데이트 주기": ("[데이트 선호 주기]", "[데이트 선호 주기]"),
@@ -181,3 +165,5 @@ if run and raw_text:
         st.error(f"❌ 분석 실패: {e}")
 else:
     st.info("TSV 붙여넣고 ➡️ 분석 시작!")
+
+나이 일치 부분에 전부 X가 떠 문제 해결해줘
