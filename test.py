@@ -99,7 +99,7 @@ def distance_match(a_self, a_pref, b_self, b_pref):
 
     if a_short_only or b_short_only:
         return a_self.strip() == b_self.strip()
-    return True  # 장거리 허용
+    return True
 
 # ----------------- main -----------------
 if run and raw_text:
@@ -144,7 +144,8 @@ if run and raw_text:
             if not a_nick or not b_nick:
                 continue
 
-            musts = list(set(tokens(A[MUST])) | set(tokens(B[MUST])))
+            musts_all = set(tokens(A[MUST])) | set(tokens(B[MUST]))
+            musts = [m for m in musts_all if m not in ["나이", "거리"]]
             must_total = len(musts)
             must_matched = 0
             reasons = []
@@ -179,12 +180,10 @@ if run and raw_text:
 
             match_rate = round((must_matched / must_total * 100) if must_total else 0.0, 1)
 
-            # 나이 일치
             age_match = "✅" if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]) else "❌"
             if age_match == "❌":
                 reasons.append("나이 조건 불일치")
 
-            # 거리 일치
             real_dist_match = distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF])
             dist_match = "✅" if real_dist_match else "❌"
             if not real_dist_match:
@@ -196,7 +195,7 @@ if run and raw_text:
                 "나이 일치": age_match,
                 "거리 일치": dist_match,
                 "나이 일치 점수": 1 if age_match == "✅" else 0,
-                "거리 일치 점수": 1 if ("거리" in musts and real_dist_match) else 0,
+                "거리 일치 점수": 1 if real_dist_match else 0,
                 "나이 동일 여부": 1 if A[AGE_SELF] == B[AGE_SELF] else 0,
                 "지역 동일 여부": 1 if A[DIST_SELF] == B[DIST_SELF] else 0,
                 "불일치 이유": "\n".join(reasons) if reasons else "",
