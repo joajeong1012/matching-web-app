@@ -7,7 +7,7 @@ import base64
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 필수 조건 완전일치 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (필수 조건 완전일치)")
+st.title("🌈 레이디 이어주기 매칭 분석기 (나이/거리 + 필수 조건 완전일치)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -37,7 +37,7 @@ def numeric_match(value, rng):
 def clean_column(col: str) -> str:
     return col.replace("\n", " ").replace("\r", " ").replace('"', '').strip()
 
-# ----------------- matching logic -----------------
+# ----------------- main -----------------
 if run and raw_text:
     try:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
@@ -56,6 +56,7 @@ if run and raw_text:
             st.error("❌ 필수 컬럼이 없습니다. (닉네임 / 꼭 맞아야 하는 조건들은 무엇인가레?)")
             st.stop()
 
+        # 비교 조건 정의
         condition_fields = {
             "나이": (AGE_SELF, AGE_PREF),
             "키": (HEIGHT_SELF, HEIGHT_PREF),
@@ -79,12 +80,12 @@ if run and raw_text:
             if not a_nick or not b_nick:
                 continue
 
-            musts = tokens(A[MUST])
+            # 항상 나이/거리 포함
+            musts = list(set(tokens(A[MUST]) + ["나이", "거리"]))
             all_match = True
             matched_items = []
 
             for key in musts:
-                key = key.strip()
                 if key not in condition_fields:
                     continue
                 a_field, b_field = condition_fields[key]
