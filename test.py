@@ -3,6 +3,7 @@ import re
 import streamlit as st
 from io import StringIO
 from itertools import permutations
+import base64
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 필수 조건 완전일치 매칭기", layout="wide")
@@ -52,7 +53,6 @@ if run and raw_text:
             st.error("❌ 필수 컬럼이 없습니다.")
             st.stop()
 
-        # 조건 키워드 → 관련 컬럼 명칭들 매핑
         condition_fields = {
             "나이": (AGE_SELF, AGE_PREF),
             "키": (HEIGHT_SELF, HEIGHT_PREF),
@@ -91,40 +91,56 @@ if run and raw_text:
                 b_val_self = B.get(a_field, "")
                 b_val_pref = B.get(b_field, "")
 
-                # 나이/키 → 수치 비교
-                if key in ["나이", "키"]:
-                    if not (numeric_match(a_val_self, b_val_pref) and numeric_match(b_val_self, a_val_pref)):
-                        all_match = False; break
+                if key == "나이":
+                    ok1 = numeric_match(a_val_self, b_val_pref)
+                    ok2 = numeric_match(b_val_self, a_val_pref)
+                    if ok1 and ok2:
+                        matched_items.append(
+                            f"나이: {a_nick}({a_val_self}) ⬄ {b_nick} 선호({b_val_pref}), "
+                            f"{b_nick}({b_val_self}) ⬄ {a_nick} 선호({a_val_pref}) ✅"
+                        )
                     else:
-                        matched_items.append(f"{key} 일치")
-                # 거리
+                        all_match = False; break
+
+                elif key == "키":
+                    ok1 = numeric_match(a_val_self, b_val_pref)
+                    ok2 = numeric_match(b_val_self, a_val_pref)
+                    if ok1 and ok2:
+                        matched_items.append(
+                            f"키: {a_nick}({a_val_self}) ⬄ {b_nick} 선호({b_val_pref}), "
+                            f"{b_nick}({b_val_self}) ⬄ {a_nick} 선호({a_val_pref}) ✅"
+                        )
+                    else:
+                        all_match = False; break
+
                 elif key == "거리":
                     if "단거리" in str(A[DIST_PREF]) or "단거리" in str(B[DIST_PREF]):
-                        if A[DIST_SELF] != B[DIST_SELF]:
-                            all_match = False; break
+                        if A[DIST_SELF] == B[DIST_SELF]:
+                            matched_items.append(f"지역: {A[DIST_SELF]} ⬄ {B[DIST_SELF]}, 단거리 조건 있음 → ✅")
                         else:
-                            matched_items.append("단거리 지역 일치")
+                            all_match = False; break
                     else:
-                        matched_items.append("거리 무관")
-                # 단일 필드 (데이트 주기 등)
+                        matched_items.append(f"지역: {A[DIST_SELF]} ⬄ {B[DIST_SELF]}, 거리 무관 → ✅")
+
                 elif a_field == b_field:
-                    if str(A[a_field]).strip() != str(B[b_field]).strip():
-                        all_match = False; break
+                    if str(A[a_field]).strip() == str(B[b_field]).strip():
+                        matched_items.append(f"{key}: 동일 → ✅")
                     else:
-                        matched_items.append(f"{key} 일치")
-                # 일반 다중 선택형 항목
+                        all_match = False; break
+
                 else:
-                    if not (set(tokens(A[a_field])).intersection(tokens(B[b_field])) and
-                            set(tokens(B[a_field])).intersection(tokens(A[b_field]))):
-                        all_match = False; break
+                    t1 = set(tokens(A[a_field])).intersection(tokens(B[b_field]))
+                    t2 = set(tokens(B[a_field])).intersection(tokens(A[b_field]))
+                    if t1 and t2:
+                        matched_items.append(f"{key}: 양방향 일부 일치 → ✅")
                     else:
-                        matched_items.append(f"{key} 일치")
+                        all_match = False; break
 
             if all_match:
                 results.append({
                     "A": a_nick,
                     "B": b_nick,
-                    "일치 조건": ", ".join(matched_items),
+                    "일치 조건 설명": "\n".join(matched_items),
                     "필수 조건": ", ".join(musts),
                     "일치": "✅"
                 })
