@@ -4,13 +4,43 @@ import streamlit as st
 from io import StringIO
 from itertools import combinations
 
-# ----------------- UI -----------------
+# ----------------- UI 설정 -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (정렬 우선순위 강화)")
+
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .stTextArea textarea {
+            background-color: #fdf6fa;
+            font-family: 'Arial';
+            font-size: 14px;
+        }
+        .stDataFrame {
+            font-size: 13px;
+        }
+        .big-button .stButton>button {
+            font-size: 16px;
+            height: 3em;
+            width: 100%;
+            background-color: #ffdef0;
+            color: black;
+            border-radius: 10px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("💘 조건 우선 정렬 매칭기")
+st.subheader("🌈 레이디 이어주기 매칭 분석기")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
-raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
-run = st.button("🔍 분석 시작")
+# ----------------- 입력 -----------------
+st.markdown("#### 📥 TSV 데이터를 아래에 붙여넣어 주세요:")
+raw_text = st.text_area("TSV 데이터", height=300, label_visibility="collapsed")
+run = st.button("🔍 분석 시작", help="붙여넣기 후 눌러주세요")
+
 st.markdown("---")
 
 # ----------------- helpers -----------------
@@ -61,7 +91,6 @@ def find_column(df, keyword: str):
     return next((c for c in df.columns if keyword in c), None)
 
 def distance_match(a_self, a_pref, b_self, b_pref):
-    """거리 조건이 단거리 포함 시 동일 지역이어야 함"""
     a_tokens = tokens(a_pref)
     b_tokens = tokens(b_pref)
     if "단거리" in a_tokens or "단거리" in b_tokens:
@@ -187,13 +216,19 @@ if run and raw_text:
         if out.empty:
             st.warning("😢 매칭 결과가 없습니다.")
         else:
-            st.success(f"총 {len(out)}쌍 비교 완료 (정렬 우선순위 강화)")
+            st.success(f"✅ 총 {len(out)}쌍 비교 완료! 조건 정렬 결과가 아래에 표시됩니다.")
             st.dataframe(out.drop(columns=[
                 "나이 일치 점수", "거리 일치 점수", "나이 동일 여부", "지역 동일 여부"
             ]), use_container_width=True)
-            st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_결과.csv", "text/csv")
+
+            st.download_button(
+                label="📥 매칭 결과 CSV 다운로드",
+                data=out.to_csv(index=False).encode("utf-8-sig"),
+                file_name="매칭_결과.csv",
+                mime="text/csv"
+            )
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
 else:
-    st.info("TSV 붙여넣고 ➡️ 분석 시작!")
+    st.info("👆 TSV 붙여넣고 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
