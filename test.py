@@ -6,7 +6,7 @@ from itertools import combinations
 
 # ----------------- UI -----------------
 st.set_page_config(page_title="💘 조건 우선 정렬 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (나이/거리 일치 = 조건 방식 적용)")
+st.title("🌈 레이디 이어주기 매칭 분석기 (거리 조건 정밀판단 포함)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -59,6 +59,14 @@ def clean_column(col: str) -> str:
 
 def find_column(df, keyword: str):
     return next((c for c in df.columns if keyword in c), None)
+
+def distance_match(a_self, a_pref, b_self, b_pref):
+    """거리 조건이 단거리 포함 시 동일 지역이어야 함"""
+    a_tokens = tokens(a_pref)
+    b_tokens = tokens(b_pref)
+    if "단거리" in a_tokens or "단거리" in b_tokens:
+        return a_self.strip() == b_self.strip()
+    return True
 
 # ----------------- main -----------------
 if run and raw_text:
@@ -139,18 +147,18 @@ if run and raw_text:
 
             match_rate = round((must_matched / must_total * 100) if must_total else 0.0, 1)
 
-            # ✅ 나이 비교 (필수 조건과 동일 방식)
+            # 나이 일치 (항상)
             age_match = "✅" if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]) else "❌"
             if age_match == "❌":
                 reasons.append("나이 조건 불일치")
 
-            # ✅ 거리 비교 (필수 조건 방식)
-            a_dist_self, a_dist_pref = A[DIST_SELF], A[DIST_PREF]
-            b_dist_self, b_dist_pref = B[DIST_SELF], B[DIST_PREF]
-            dist_match = "✅" if set(tokens(a_dist_self)).intersection(tokens(b_dist_pref)) and \
-                                set(tokens(b_dist_self)).intersection(tokens(a_dist_pref)) else "❌"
-            if dist_match == "❌":
-                reasons.append("거리 조건 불일치")
+            # 거리 일치 (필수 조건일 경우만 정확 비교)
+            if "거리" in musts:
+                dist_match = "✅" if distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF]) else "❌"
+                if dist_match == "❌":
+                    reasons.append("거리 조건 불일치 (단거리 요구 & 지역 다름)")
+            else:
+                dist_match = "무관"
 
             results.append({
                 "A ↔ B": f"{a_nick} ↔ {b_nick}",
@@ -158,7 +166,7 @@ if run and raw_text:
                 "나이 일치": age_match,
                 "거리 일치": dist_match,
                 "나이 일치 점수": 1 if age_match == "✅" else 0,
-                "거리 일치 점수": 1 if dist_match == "✅" else 0,
+                "거리 일치 점수": 1 if dist_match == "✅" else (0 if dist_match == "❌" else -1),
                 "불일치 이유": "\n".join(reasons) if reasons else "",
                 "필수 조건 개수": must_total,
                 "일치한 필수 조건 수": must_matched
@@ -173,7 +181,7 @@ if run and raw_text:
         if out.empty:
             st.warning("😢 매칭 결과가 없습니다.")
         else:
-            st.success(f"총 {len(out)}쌍 비교 완료 (중복 제거 & 조건 기반 일치 판단)")
+            st.success(f"총 {len(out)}쌍 비교 완료 (거리 필수 조건 반영)")
             st.dataframe(out.drop(columns=["나이 일치 점수", "거리 일치 점수"]), use_container_width=True)
             st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_결과.csv", "text/csv")
 
