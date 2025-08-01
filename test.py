@@ -4,16 +4,16 @@ import streamlit as st
 from io import StringIO
 from itertools import combinations
 
-# ----------------- UI 설정 -----------------
-st.set_page_config(page_title="💘 조건 전체 비교 매칭기", layout="wide")
+# ----------------- UI -----------------
+st.set_page_config(page_title="💘 전체 조건 매칭기", layout="wide")
 st.title("💘 전체 조건 기반 레이디 매칭기")
-st.caption("TSV 데이터를 붙여넣고 ➡️ [🔍 분석 시작] 버튼을 눌러주세요")
+st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
 run = st.button("🔍 분석 시작")
 st.markdown("---")
 
-# ----------------- Helper 함수 -----------------
+# ----------------- helpers -----------------
 SEP = re.compile(r"[,/]|\s+")
 
 def tokens(val):
@@ -63,15 +63,13 @@ def find_column(df, keyword: str):
 def distance_match(a_self, a_pref, b_self, b_pref):
     a_tokens = set(tokens(a_pref))
     b_tokens = set(tokens(b_pref))
-
     a_short_only = "단거리" in a_tokens and "장거리" not in a_tokens
     b_short_only = "단거리" in b_tokens and "장거리" not in b_tokens
-
     if a_short_only or b_short_only:
         return a_self.strip() == b_self.strip()
     return True
 
-# ----------------- 분석 시작 -----------------
+# ----------------- main -----------------
 if run and raw_text:
     try:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
@@ -107,7 +105,6 @@ if run and raw_text:
         for i, j in combinations(df.index, 2):
             A, B = df.loc[i], df.loc[j]
             a_nick, b_nick = A[NICK].strip(), B[NICK].strip()
-
             matched = 0
             issues = []
 
@@ -118,7 +115,6 @@ if run and raw_text:
                 b_self = str(B.get(a_field, ""))
                 b_pref = str(B.get(b_field, ""))
 
-                # 비교 방식에 따라 구분
                 if key in ["나이", "키"]:
                     ok1 = ranges_overlap(b_self, a_pref)
                     ok2 = ranges_overlap(a_self, b_pref)
@@ -152,12 +148,16 @@ if run and raw_text:
 
             total = len(all_conditions)
             match_rate = round(matched / total * 100, 1)
+            age_ok = ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF])
+            dist_ok = distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF])
 
             results.append({
                 "A ↔ B": f"{a_nick} ↔ {b_nick}",
                 "전체 조건 일치율 (%)": match_rate,
-                "나이 일치": "✅" if ranges_overlap(A[AGE_SELF], B[AGE_PREF]) and ranges_overlap(B[AGE_SELF], A[AGE_PREF]) else "❌",
-                "거리 일치": "✅" if distance_match(A[DIST_SELF], A[DIST_PREF], B[DIST_SELF], B[DIST_PREF]) else "❌",
+                "나이 일치": "✅" if age_ok else "❌",
+                "거리 일치": "✅" if dist_ok else "❌",
+                "나이 일치 점수": 1 if age_ok else 0,
+                "거리 일치 점수": 1 if dist_ok else 0,
                 "불일치 이유": ", ".join(issues) if issues else "",
                 "일치한 조건 수": matched,
                 "총 조건 수": total,
@@ -167,7 +167,7 @@ if run and raw_text:
 
         out = pd.DataFrame(results)
         out = out.sort_values(
-            by=["전체 조건 일치율 (%)", "나이 일치", "거리 일치", "나이 동일 여부", "지역 동일 여부"],
+            by=["전체 조건 일치율 (%)", "나이 일치 점수", "거리 일치 점수", "나이 동일 여부", "지역 동일 여부"],
             ascending=[False, False, False, False, False]
         ).reset_index(drop=True)
 
@@ -175,7 +175,9 @@ if run and raw_text:
             st.warning("😢 매칭 결과가 없습니다.")
         else:
             st.success(f"총 {len(out)}쌍 비교 완료!")
-            st.dataframe(out.drop(columns=["나이 동일 여부", "지역 동일 여부"]), use_container_width=True)
+            st.dataframe(out.drop(columns=[
+                "나이 일치 점수", "거리 일치 점수", "나이 동일 여부", "지역 동일 여부"
+            ]), use_container_width=True)
             st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "전체조건_매칭결과.csv", "text/csv")
 
     except Exception as e:
