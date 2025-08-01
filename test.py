@@ -22,13 +22,18 @@ def tokens(val):
 
 def numeric_match(value, rng):
     try:
-        v = float(value)
+        v = float(re.sub(r"[^\d.]", "", str(value)))  # 숫자만 추출
     except:
         return False
-    rng = str(rng).replace("이상", "0~").replace("이하", "~1000").replace(" ", "")
+    rng = str(rng).replace("이상", "0~").replace("이하", "~1000").replace(" ", "").strip()
     if "~" in rng:
-        s, e = rng.split("~"); s = float(s or 0); e = float(e or 1000)
-        return s <= v <= e
+        try:
+            s, e = rng.split("~")
+            s = float(s or 0)
+            e = float(e or 1000)
+            return s <= v <= e
+        except:
+            return False
     try:
         return v == float(rng)
     except:
@@ -43,31 +48,31 @@ if run and raw_text:
         df = pd.read_csv(StringIO(raw_text), sep="\t", dtype=str, engine="python")
         df.columns = [clean_column(c) for c in df.columns]
 
-        NICK = "닉네임"
-        MUST = "꼭 맞아야 하는 조건들은 무엇인가레?"
+        NICK = next((c for c in df.columns if "닉네임" in c), None)
+        MUST = next((c for c in df.columns if "꼭 맞아야" in c), None)
         DIST_SELF = "레이디의 거주 지역"
-        DIST_PREF = "희망하는 거리 조건"
-        AGE_SELF = "레이디 나이"
-        AGE_PREF = "선호하는 상대방 레이디 나이"
-        HEIGHT_SELF = "레이디 키"
-        HEIGHT_PREF = "상대방 레이디 키"
+        DIST_PREF = next((c for c in df.columns if "희망하는 거리 조건" in c), None)
+        AGE_SELF = next((c for c in df.columns if "레이디 나이" in c), None)
+        AGE_PREF = next((c for c in df.columns if "선호하는 상대방 레이디 나이" in c), None)
+        HEIGHT_SELF = next((c for c in df.columns if "레이디 키" in c), None)
+        HEIGHT_PREF = next((c for c in df.columns if "상대방 레이디 키" in c), None)
 
-        if NICK not in df.columns or MUST not in df.columns:
-            st.error("❌ 필수 컬럼이 없습니다. (닉네임 / 꼭 맞아야 하는 조건들은 무엇인가레?)")
+        if not all([NICK, MUST, DIST_SELF, DIST_PREF, AGE_SELF, AGE_PREF]):
+            st.error("❌ 필수 컬럼 중 일부가 누락되었습니다.")
             st.stop()
 
         condition_fields = {
             "나이": (AGE_SELF, AGE_PREF),
             "키": (HEIGHT_SELF, HEIGHT_PREF),
             "거리": (DIST_SELF, DIST_PREF),
-            "흡연": ("[흡연(레이디)]", "[흡연(상대방 레이디)]"),
-            "음주": ("[음주(레이디)]", "[음주(상대방 레이디) ]"),
-            "타투": ("[타투(레이디)]", "[타투(상대방 레이디)]"),
-            "벽장": ("[벽장(레이디)]", "[벽장(상대방 레이디)]"),
-            "성격": ("[성격(레이디)]", "[성격(상대방 레이디)]"),
-            "연락 텀": ("[연락 텀(레이디)]", "[연락 텀(상대방 레이디)]"),
-            "머리 길이": ("[머리 길이(레이디)]", "[머리 길이(상대방 레이디)]"),
-            "데이트 주기": ("[데이트 선호 주기]", "[데이트 선호 주기]"),
+            "흡연": ("세부 조건  Yes or No [흡연(레이디)]", "세부 조건  Yes or No [흡연(상대방 레이디)]"),
+            "음주": ("세부 조건  Yes or No [음주(레이디)]", "세부 조건  Yes or No [음주(상대방 레이디) ]"),
+            "타투": ("세부 조건  Yes or No [타투(레이디)]", "세부 조건  Yes or No [타투(상대방 레이디)]"),
+            "벽장": ("세부 조건  Yes or No [벽장(레이디)]", "세부 조건  Yes or No [벽장(상대방 레이디)]"),
+            "성격": ("성격 [성격(레이디)]", "성격 [성격(상대방 레이디)]"),
+            "연락 텀": ("긴 or 짧 [연락 텀(레이디)]", "긴 or 짧 [연락 텀(상대방 레이디)]"),
+            "머리 길이": ("긴 or 짧 [머리 길이(레이디)]", "긴 or 짧 [머리 길이(상대방 레이디)]"),
+            "데이트 주기": ("긴 or 짧 [데이트 선호 주기]", "긴 or 짧 [데이트 선호 주기]"),
         }
 
         df = df[df[NICK].notna()].drop_duplicates(subset=[NICK]).reset_index(drop=True)
@@ -83,6 +88,7 @@ if run and raw_text:
             must_total = len(musts)
             must_matched = 0
             reasons = []
+
             for key in musts:
                 if key not in condition_fields:
                     continue
@@ -111,17 +117,16 @@ if run and raw_text:
                     else:
                         reasons.append(f"{key} 불일치")
 
-            # 필수 조건 일치율
             match_rate = round((must_matched / must_total * 100) if must_total else 0.0, 1)
 
-            # 나이 조건 별도
+            # 나이 비교
             age_match = "❌"
             if numeric_match(A[AGE_SELF], B[AGE_PREF]) and numeric_match(B[AGE_SELF], A[AGE_PREF]):
                 age_match = "✅"
             else:
                 reasons.append("나이 조건 불일치")
 
-            # 거리 조건 별도
+            # 거리 비교
             dist_match = "무관"
             if "단거리" in str(A[DIST_PREF]) or "단거리" in str(B[DIST_PREF]):
                 if A[DIST_SELF] == B[DIST_SELF]:
