@@ -165,5 +165,4 @@ if run and raw_text:
         st.error(f"❌ 분석 실패: {e}")
 else:
     st.info("TSV 붙여넣고 ➡️ 분석 시작!")
-
-나이 일치 부분에 전부 X가 떠 문제 해결해줘
+    
