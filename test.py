@@ -6,8 +6,8 @@ from itertools import permutations
 import base64
 
 # ----------------- UI -----------------
-st.set_page_config(page_title="💘 필수 조건 완전일치 매칭기", layout="wide")
-st.title("🌈 레이디 이어주기 매칭 분석기 (나이/거리 + 필수 조건 완전일치)")
+st.set_page_config(page_title="💘 필수 조건 매칭기 (불일치 이유까지)", layout="wide")
+st.title("🌈 레이디 이어주기 매칭 분석기 (불일치 이유 포함)")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=300)
@@ -56,7 +56,6 @@ if run and raw_text:
             st.error("❌ 필수 컬럼이 없습니다. (닉네임 / 꼭 맞아야 하는 조건들은 무엇인가레?)")
             st.stop()
 
-        # 비교 조건 정의
         condition_fields = {
             "나이": (AGE_SELF, AGE_PREF),
             "키": (HEIGHT_SELF, HEIGHT_PREF),
@@ -80,10 +79,10 @@ if run and raw_text:
             if not a_nick or not b_nick:
                 continue
 
-            # 항상 나이/거리 포함
             musts = list(set(tokens(A[MUST]) + ["나이", "거리"]))
             all_match = True
             matched_items = []
+            unmatched_reasons = []
 
             for key in musts:
                 if key not in condition_fields:
@@ -99,30 +98,27 @@ if run and raw_text:
                     ok1 = numeric_match(a_val_self, b_val_pref)
                     ok2 = numeric_match(b_val_self, a_val_pref)
                     if ok1 and ok2:
-                        matched_items.append(
-                            f"나이: {a_nick}({a_val_self}) ⬄ {b_nick} 선호({b_val_pref}), "
-                            f"{b_nick}({b_val_self}) ⬄ {a_nick} 선호({a_val_pref}) ✅"
-                        )
+                        matched_items.append(f"나이: {a_nick}({a_val_self}) ⬄ {b_nick}({b_val_self}) ✅")
                     else:
-                        all_match = False; break
+                        unmatched_reasons.append("나이 조건 불일치")
+                        all_match = False
 
                 elif key == "키":
                     ok1 = numeric_match(a_val_self, b_val_pref)
                     ok2 = numeric_match(b_val_self, a_val_pref)
                     if ok1 and ok2:
-                        matched_items.append(
-                            f"키: {a_nick}({a_val_self}) ⬄ {b_nick} 선호({b_val_pref}), "
-                            f"{b_nick}({b_val_self}) ⬄ {a_nick} 선호({a_val_pref}) ✅"
-                        )
+                        matched_items.append(f"키: {a_nick}({a_val_self}) ⬄ {b_nick}({b_val_self}) ✅")
                     else:
-                        all_match = False; break
+                        unmatched_reasons.append("키 조건 불일치")
+                        all_match = False
 
                 elif key == "거리":
                     if "단거리" in str(A[DIST_PREF]) or "단거리" in str(B[DIST_PREF]):
                         if A[DIST_SELF] == B[DIST_SELF]:
-                            matched_items.append(f"지역: {A[DIST_SELF]} ⬄ {B[DIST_SELF]}, 단거리 조건 있음 → ✅")
+                            matched_items.append(f"지역: {A[DIST_SELF]} ⬄ {B[DIST_SELF]}, 단거리 조건 → ✅")
                         else:
-                            all_match = False; break
+                            unmatched_reasons.append(f"거리 조건 불일치 (단거리 요구 & 지역 다름)")
+                            all_match = False
                     else:
                         matched_items.append(f"지역: {A[DIST_SELF]} ⬄ {B[DIST_SELF]}, 거리 무관 → ✅")
 
@@ -130,7 +126,8 @@ if run and raw_text:
                     if str(A[a_field]).strip() == str(B[b_field]).strip():
                         matched_items.append(f"{key}: 동일 → ✅")
                     else:
-                        all_match = False; break
+                        unmatched_reasons.append(f"{key} 불일치")
+                        all_match = False
 
                 else:
                     t1 = set(tokens(A[a_field])).intersection(tokens(B[b_field]))
@@ -138,24 +135,25 @@ if run and raw_text:
                     if t1 and t2:
                         matched_items.append(f"{key}: 양방향 일부 일치 → ✅")
                     else:
-                        all_match = False; break
+                        unmatched_reasons.append(f"{key} 불일치")
+                        all_match = False
 
-            if all_match:
-                results.append({
-                    "A": a_nick,
-                    "B": b_nick,
-                    "일치 조건 설명": "\n".join(matched_items),
-                    "필수 조건": ", ".join(musts),
-                    "일치": "✅"
-                })
+            results.append({
+                "A": a_nick,
+                "B": b_nick,
+                "결과": "✅" if all_match else "❌",
+                "일치 조건 설명": "\n".join(matched_items),
+                "불일치 이유": "\n".join(unmatched_reasons),
+                "필수 조건": ", ".join(musts)
+            })
 
         out = pd.DataFrame(results)
         if out.empty:
-            st.warning("😢 모든 필수 조건이 일치하는 매칭 결과가 없습니다.")
+            st.warning("😢 매칭 결과가 없습니다.")
         else:
-            st.success(f"✨ 총 {len(out)}쌍 매칭 완료!")
+            st.success(f"총 {len(out)}쌍 분석 완료 (일치 + 불일치 포함)")
             st.dataframe(out, use_container_width=True)
-            st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "필수조건_일치_매칭결과.csv", "text/csv")
+            st.download_button("📥 CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "매칭_결과_전체.csv", "text/csv")
 
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
