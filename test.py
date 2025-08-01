@@ -5,14 +5,14 @@ from io import StringIO
 from itertools import permutations
 
 # ----------------- UI -----------------
-st.set_page_config(page_title="💘 나이+지역 필수 매칭기", layout="wide")
-st.title("🔍 나이 & 지역 일치 매칭 분석기")
+st.set_page_config(page_title="💘 조건 완전일치 매칭기", layout="wide")
+st.title("🔍 나이 + 지역 + 필수조건 일치 매칭 분석기")
 st.caption("TSV 전체 붙여넣기 후 ➡️ **[🔍 분석 시작]** 버튼을 눌러주세요")
 
 raw_text = st.text_area("📥 TSV 데이터를 붙여넣기", height=250)
 run = st.button("🔍 분석 시작")
 
-# ----------------- helper -----------------
+# ----------------- helpers -----------------
 SEP = re.compile(r"[,/]|\s+")
 
 def tokens(val):
@@ -52,8 +52,9 @@ if run and raw_text:
         AGE_PREF = "선호하는 상대방 레이디 나이"
         DIST_SELF = "레이디의 거주 지역"
         DIST_PREF = "희망하는 거리 조건"
+        MUST_COL = next((c for c in df.columns if "꼭 맞아야" in c), None)
 
-        for col in [AGE_SELF, AGE_PREF, DIST_SELF, DIST_PREF]:
+        for col in [AGE_SELF, AGE_PREF, DIST_SELF, DIST_PREF, MUST_COL]:
             if col not in df.columns:
                 st.error(f"❌ 누락된 컬럼: {col}")
                 st.stop()
@@ -69,7 +70,7 @@ if run and raw_text:
             if not a_nick or not b_nick:
                 continue
 
-            # 나이 조건
+            # 나이 조건 (양방향)
             age_match = (
                 numeric_match(A[AGE_SELF], B[AGE_PREF]) and
                 numeric_match(B[AGE_SELF], A[AGE_PREF])
@@ -84,23 +85,40 @@ if run and raw_text:
             if "단거리" in a_pref or "단거리" in b_pref:
                 dist_match = a_dist == b_dist
 
-            if age_match and dist_match:
+            # 필수 조건 체크
+            must_match = True
+            must_tokens = tokens(A[MUST_COL])
+            for cond in must_tokens:
+                cond = cond.lower()
+                if cond == "거리":
+                    if "단거리" in a_pref and a_dist != b_dist:
+                        must_match = False; break
+                elif cond == "성격":
+                    a_pref_trait = A.get("성격 [성격(상대방 레이디)]", "")
+                    b_self_trait = B.get("성격 [성격(레이디)]", "")
+                    if not set(tokens(a_pref_trait)).intersection(tokens(b_self_trait)):
+                        must_match = False; break
+
+            if age_match and dist_match and must_match:
                 rows.append({
                     "A": a_nick,
                     "B": b_nick,
                     "나이 조건": f"{A[AGE_SELF]} ↔︎ {B[AGE_PREF]}, {B[AGE_SELF]} ↔︎ {A[AGE_PREF]}",
                     "지역": f"{a_dist} - {b_dist}",
+                    "필수 조건": ", ".join(must_tokens),
                     "일치": "✅"
                 })
 
         out = pd.DataFrame(rows)
         if out.empty:
-            st.warning("😢 나이와 지역 조건에 모두 일치하는 매칭 결과가 없습니다.")
+            st.warning("😢 나이, 지역, 필수 조건에 모두 일치하는 매칭 결과가 없습니다.")
         else:
             st.success(f"✨ 총 {len(out)}쌍 매칭 완료!")
             st.dataframe(out, use_container_width=True)
             st.download_button("CSV 다운로드", out.to_csv(index=False).encode("utf-8-sig"), "필수조건_매칭결과.csv", "text/csv")
+
     except Exception as e:
         st.error(f"❌ 분석 실패: {e}")
 else:
     st.info("TSV 붙여넣고 ➡️ 분석 시작!")
+
